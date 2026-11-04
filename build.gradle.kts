@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "io.github.kiwiwhale.kiwiregistry"
-version = "1.0.4"
+version = "1.1.0"
 
 repositories {
     mavenCentral()

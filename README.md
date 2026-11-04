@@ -40,52 +40,52 @@ repositories {
 }
 
 dependencies {
-    implementation("io.github.kiwiwhale:kiwi-registry:1.0.1")
+    implementation("io.github.kiwiwhale:kiwi-registry:1.1.0")
 }
 ```
 
 ## Quick Start
 
-### Registry ID
-
-A `RegistryId` identifies a registry using a namespace and key.
+### Create a Registry
 
 ```kotlin
-val id = RegistryId(
-    namespace = "example",
-    key = "items"
+val key = RegistryKey.of<String>(
+    "example",
+    "services"
 )
 
-println(id) // example:items
+val registry = MutableRegistry.create(key)
+
+registry.register("database", "MySQL")
+registry.register("cache", "Redis")
+
+println(registry["database"])
 ```
 
-You can also create an ID from a string:
+### Freeze and Thaw
 
 ```kotlin
-val id = RegistryId.fromString("example:items")
+val frozen = registry.freeze()
+val mutable = frozen.thaw()
+
+mutable.register("queue", "RabbitMQ")
 ```
 
-### Simple Registry Key
-
-Create a simple registry key with `RegistryKey.simple()`:
+### Bootstrap
 
 ```kotlin
-val key = RegistryKey.simple<String, Int>(
-    RegistryId("example", "items")
-)
+val bootstrap = Bootstrap.create {
+    registry(key) {
+        add("database", "MySQL")
+        add("cache", "Redis")
+    }
+}
+
+val services = bootstrap[key]
+println(services["database"])
 ```
 
-### Grouped Registry Key
-
-For grouped entries, use `RegistryKey.grouped()`:
-
-```kotlin
-val key = RegistryKey.grouped<String, String, MyGroupedEntry>(
-    RegistryId("example", "grouped_items")
-)
-```
-
-`MyGroupedEntry` must implement `GroupedEntry<Group>`.
+`Bootstrap` creates immutable registries, while `MutableRegistry` supports runtime modifications.
 
 ## Registry Keys
 
