@@ -7,51 +7,87 @@ import kotlin.test.assertFailsWith
 class RegistryIdTest {
 
     @Test
-    fun `유효한 ID를 생성한다`() {
-        val id = RegistryId("minecraft", "stone")
+    fun `레지스트리 ID를 생성한다`() {
+        val id = RegistryId("core", "services")
 
-        assertEquals("minecraft", id.namespace)
-        assertEquals("stone", id.key)
-        assertEquals("minecraft:stone", id.toString())
+        assertEquals("core", id.namespace)
+        assertEquals("services", id.key)
+        assertEquals("core:services", id.toString())
     }
 
     @Test
-    fun `문자열에서 ID를 파싱한다`() {
+    fun `팩토리를 사용하여 레지스트리 ID를 생성한다`() {
+        val id = RegistryId.of("core", "services")
+
         assertEquals(
-            RegistryId("minecraft", "stone"),
-            RegistryId.parse("minecraft:stone")
+            id,
+            RegistryId("core", "services")
         )
     }
 
     @Test
-    fun `잘못된 ID를 거부한다`() {
-        listOf(
+    fun `레지스트리 ID를 파싱한다`() {
+        val id = RegistryId.parse("core:services")
+
+        assertEquals("core", id.namespace)
+        assertEquals("services", id.key)
+    }
+
+    @Test
+    fun `파싱한 ID와 직접 생성한 ID는 서로 같다`() {
+        assertEquals(
+            RegistryId.parse("core:services"),
+            RegistryId("core", "services")
+        )
+    }
+
+    @Test
+    fun `빈 네임스페이스를 거부한다`() {
+        assertFailsWith<IllegalArgumentException> {
+            RegistryId("", "services")
+        }
+
+        assertFailsWith<IllegalArgumentException> {
+            RegistryId(" ", "services")
+        }
+    }
+
+    @Test
+    fun `빈 키를 거부한다`() {
+        assertFailsWith<IllegalArgumentException> {
+            RegistryId("core", "")
+        }
+    }
+
+    @Test
+    fun `네임스페이스에 콜론이 포함된 경우 거부한다`() {
+        assertFailsWith<IllegalArgumentException> {
+            RegistryId("core:test", "services")
+        }
+    }
+
+    @Test
+    fun `키에 콜론이 포함된 경우 거부한다`() {
+        assertFailsWith<IllegalArgumentException> {
+            RegistryId("core", "service:test")
+        }
+    }
+
+    @Test
+    fun `잘못된 레지스트리 ID 형식을 거부한다`() {
+        val invalidIds = listOf(
             "",
-            ":stone",
-            "minecraft:",
-            "minecraft:stone:block",
-            "minecraft"
-        ).forEach { value ->
+            "core",
+            ":services",
+            "core:",
+            "core:services:extra",
+            ":",
+            "core::services"
+        )
+
+        invalidIds.forEach { value ->
             assertFailsWith<IllegalArgumentException> {
                 RegistryId.parse(value)
-            }
-        }
-    }
-
-    @Test
-    fun `잘못된 namespace를 거부한다`() {
-        listOf("", " ", "minecraft:other").forEach {
-            assertFailsWith<IllegalArgumentException> {
-                RegistryId(it, "stone")
-            }
-        }
-    }
-
-    @Test
-    fun `잘못된 key를 거부한다`() {
-        listOf("", " ", "stone:block").forEach {
-            assertFailsWith<IllegalArgumentException> {
-                RegistryId("minecraft", it)
             }
         }
     }
