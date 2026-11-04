@@ -1,0 +1,62 @@
+plugins {
+    kotlin("jvm") version "2.4.21"
+    id("co.uzzu.dotenv.gradle") version "4.0.0"
+    `maven-publish`
+}
+
+group = "io.github.kiwiwhale.kiwiregistry"
+version = "1.0-SNAPSHOT"
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation(kotlin("test"))
+}
+
+kotlin {
+    jvmToolchain(25)
+}
+
+tasks.test {
+    useJUnitPlatform()
+}
+
+val mavenUsername = env.fetch("MAVEN_USERNAME")
+val mavenPassword = env.fetch("MAVEN_PASSWORD")
+
+publishing {
+    repositories {
+        maven {
+            name = "mrjiminRepository"
+
+            url = uri(
+                if (project.version.toString().endsWith("-SNAPSHOT")) {
+                    "https://repo.mrjimin.xyz/snapshots"
+                } else {
+                    "https://repo.mrjimin.xyz/releases"
+                }
+            )
+
+            credentials {
+                username = mavenUsername
+                password = mavenPassword
+            }
+
+            authentication {
+                create<BasicAuthentication>("basic")
+            }
+        }
+    }
+
+    publications {
+        create<MavenPublication>("maven") {
+            groupId = project.group.toString()
+            artifactId = "kiwiregistry"
+            version = project.version.toString()
+
+            from(components["java"])
+        }
+    }
+}
