@@ -1,58 +1,58 @@
-name: Deploy Documentation
-
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
-jobs:
-  build:
-    name: Build Dokka Documentation
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '25'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Generate Documentation
-        run: ./gradlew :dokkaGeneratePublicationHtml
-
-      - name: Upload Documentation
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: build/dokka/html
-
-  deploy:
-    name: Deploy to GitHub Pages
-    if: github.event_name != 'pull_request'
-    needs: build
-    runs-on: ubuntu-latest
-
-    permissions:
-      pages: write
-      id-token: write
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Deploy Documentation
-        id: deployment
-        uses: actions/deploy-pages@v4
+#name: Deploy Documentation
+#
+#on:
+#  push:
+#    branches:
+#      - main
+#  pull_request:
+#    branches:
+#      - main
+#  workflow_dispatch:
+#
+#permissions:
+#  contents: read
+#
+#jobs:
+#  build:
+#    name: Build Dokka Documentation
+#    runs-on: ubuntu-latest
+#
+#    steps:
+#      - name: Checkout Repository
+#        uses: actions/checkout@v4
+#
+#      - name: Setup JDK
+#        uses: actions/setup-java@v4
+#        with:
+#          distribution: temurin
+#          java-version: '25'
+#
+#      - name: Setup Gradle
+#        uses: gradle/actions/setup-gradle@v4
+#
+#      - name: Generate Documentation
+#        run: ./gradlew :dokkaGeneratePublicationHtml
+#
+#      - name: Upload Documentation
+#        uses: actions/upload-pages-artifact@v4
+#        with:
+#          path: build/dokka/html
+#
+#  deploy:
+#    name: Deploy to GitHub Pages
+#    if: github.event_name != 'pull_request'
+#    needs: build
+#    runs-on: ubuntu-latest
+#
+#    permissions:
+#      pages: write
+#      id-token: write
+#
+#    environment:
+#      name: github-pages
+#      url: ${{ steps.deployment.outputs.page_url }}
+#
+#    steps:
+#      - name: Deploy Documentation
+#        id: deployment
+#        uses: actions/deploy-pages@v4
