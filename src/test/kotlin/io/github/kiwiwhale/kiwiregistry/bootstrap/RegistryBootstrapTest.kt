@@ -363,4 +363,68 @@ class RegistryBootstrapTest {
         assertEquals("Second", registry["second"])
         assertEquals(1, secondBuildCount)
     }
+
+    @Test
+    fun `PreHook 실패 시 Bootstrap 상태가 복구된다`() {
+        val bootstrap = RegistryBootstrap()
+
+        val holder = TestHolder()
+        var shouldFail = true
+
+        bootstrap.submit(
+            contribution(holder) {
+                pre {
+                    if (shouldFail) {
+                        error("PreHook failed")
+                    }
+                }
+
+                registry(registryKey) {
+                    add("sword", "Sword")
+                }
+            }
+        )
+
+        assertFailsWith<IllegalStateException> {
+            bootstrap.build()
+        }
+
+        assertEquals(false, bootstrap.isInitialized)
+
+        shouldFail = false
+        bootstrap.build()
+
+        assertEquals(true, bootstrap.isInitialized)
+        assertEquals("Sword", bootstrap.getRegistry(registryKey)["sword"])
+    }
+
+    @Test
+    fun `PostHook 실패해도 Bootstrap은 완료 상태를 유지한다`() {
+        val bootstrap = RegistryBootstrap()
+
+        val holder = TestHolder()
+
+        bootstrap.submit(
+            contribution(holder) {
+                registry(registryKey) {
+                    add("sword", "Sword")
+                }
+
+                post {
+                    error("PostHook failed")
+                }
+            }
+        )
+
+        assertFailsWith<IllegalStateException> {
+            bootstrap.build()
+        }
+
+        assertEquals(true, bootstrap.isInitialized)
+
+        assertEquals(
+            "Sword",
+            bootstrap.getRegistry(registryKey)["sword"]
+        )
+    }
 }

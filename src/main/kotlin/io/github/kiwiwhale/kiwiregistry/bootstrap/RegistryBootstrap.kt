@@ -3,7 +3,6 @@ package io.github.kiwiwhale.kiwiregistry.bootstrap
 import io.github.kiwiwhale.kiwiregistry.core.Registry
 import io.github.kiwiwhale.kiwiregistry.core.RegistryGraph
 import io.github.kiwiwhale.kiwiregistry.core.RegistryKey
-import io.github.kiwiwhale.kiwiregistry.exception.BootstrapAlreadyCompletedException
 import io.github.kiwiwhale.kiwiregistry.exception.BootstrapNotCompletedException
 import io.github.kiwiwhale.kiwiregistry.exception.DuplicateContributionException
 import io.github.kiwiwhale.kiwiregistry.exception.InvalidContributionException
@@ -17,7 +16,6 @@ internal class RegistryBootstrap {
     )
 
     private val contributions = ArrayList<Contribution>()
-
     private var snapshots = emptyList<HolderSnapshot>()
 
     @Volatile
@@ -31,7 +29,9 @@ internal class RegistryBootstrap {
 
     @Synchronized
     fun submit(contribution: Contribution) {
-        checkNotCompleted()
+        check(state == BootstrapState.CREATED) {
+            "Contributions can only be submitted before bootstrap."
+        }
 
         if (contributions.any { it.holder === contribution.holder }) {
             throw DuplicateContributionException(
@@ -46,37 +46,38 @@ internal class RegistryBootstrap {
 
     @Synchronized
     fun build() {
-        checkNotCompleted()
-
         check(state == BootstrapState.CREATED) {
-            "Bootstrap is currently being built."
+            "Bootstrap cannot be built in state: $state"
         }
 
         state = BootstrapState.BUILDING
+
+        val newSnapshots: List<HolderSnapshot>
+        val newGraph: RegistryGraph
 
         try {
             contributions.forEach { contribution ->
                 contribution.preHooks.forEach { it() }
             }
 
-            val newSnapshots = contributions.map(::evaluate)
-            val newGraph = createGraph(newSnapshots)
+            newSnapshots = contributions.map(::evaluate)
+            newGraph = createGraph(newSnapshots)
 
-            snapshots = newSnapshots
-            currentGraph = newGraph
-            state = BootstrapState.COMPLETED
-
-        } catch (exception: Exception) {
+        } catch (exception: Throwable) {
             state = BootstrapState.CREATED
             throw exception
         }
+
+        snapshots = newSnapshots
+        currentGraph = newGraph
+        state = BootstrapState.COMPLETED
 
         runPostHooks(contributions)
     }
 
     @Synchronized
     fun rebuildRegistries(holder: RegistryHolder) {
-        if (state != BootstrapState.COMPLETED) {
+        check(state == BootstrapState.COMPLETED) {
             throw BootstrapNotCompletedException()
         }
 
@@ -86,7 +87,8 @@ internal class RegistryBootstrap {
 
         if (index == -1) {
             throw InvalidContributionException(
-                "No contribution found for holder: ${holder::class.qualifiedName}"
+                "No contribution found for holder: " +
+                        (holder::class.qualifiedName ?: "Unknown")
             )
         }
 
@@ -104,7 +106,7 @@ internal class RegistryBootstrap {
         snapshots = updatedSnapshots
         currentGraph = updatedGraph
 
-        contribution.postHooks.forEach { it() }
+        runPostHooks(listOf(contribution))
     }
 
     fun graph(): RegistryGraph =
@@ -114,12 +116,6 @@ internal class RegistryBootstrap {
         key: RegistryKey<K, V>
     ): Registry<K, V> =
         graph().getRegistry(key)
-
-    private fun checkNotCompleted() {
-        if (state == BootstrapState.COMPLETED) {
-            throw BootstrapAlreadyCompletedException()
-        }
-    }
 
     private fun runPostHooks(contributions: List<Contribution>) {
         contributions.forEach { contribution ->
