@@ -14,52 +14,48 @@ import java.util.concurrent.atomic.AtomicReference
  * - Lock-free reads.
  * - Atomic writes.
  * - Atomic bulk registration.
- * - Namespace-based identification.
+ * - Namespace isolation.
  * - Immutable snapshots.
  *
- * @param T Registered value type.
- * @param K Registry key type.
+ * @param T Base registered value type.
+ * @property namespace Registry namespace.
  */
-class KiwiRegistry<T : Any, K : RegistryKey<T>>(
-    private val keyFactory: (RegistryId) -> K
-) : Registry<T, K> {
+class KiwiRegistry<T : Any>(
+    val namespace: String
+) : Registry<T> {
 
-    private data class Snapshot<K, T>(
-        val byId: Map<RegistryId, T>,
-        val keyById: Map<RegistryId, K>
-    )
+    private val state = AtomicReference<Map<RegistryId, T>>(emptyMap())
 
-    private val state = AtomicReference(
-        Snapshot<K, T>(
-            byId = emptyMap(),
-            keyById = emptyMap()
-        )
-    )
+    init {
+        require(namespace.isNotBlank() && ':' !in namespace) {
+            "Invalid registry namespace: '$namespace'."
+        }
+    }
 
     override val size: Int
-        get() = state.get().byId.size
+        get() = state.get().size
 
-    override fun register(key: K, value: T) {
-        registerAll(linkedMapOf(key to value))
+    override fun <V : T> register(key: RegistryKey<V>, value: V) {
+        register(key.id, value)
     }
 
     override fun register(id: RegistryId, value: T) {
-        register(createKey(id), value)
+        validateId(id)
+
+        registerAll(mapOf(id to value))
     }
 
-    override fun registerAll(additions: Map<K, T>) {
+    override fun registerAll(additions: Map<RegistryId, T>) {
         if (additions.isEmpty()) return
 
-        validateEntries(additions)
+        additions.keys.forEach(::validateId)
 
         while (true) {
             val current = state.get()
 
             val duplicates = additions.keys
-                .map { it.id }
-                .filter { it in current.byId }
-                .distinct()
-                .sortedBy { it.toString() }
+                .filter { it in current }
+                .sortedBy(RegistryId::toString)
 
             if (duplicates.isNotEmpty()) {
                 throw DuplicateRegistryEntryException(
@@ -67,205 +63,142 @@ class KiwiRegistry<T : Any, K : RegistryKey<T>>(
                 )
             }
 
-            val byId = LinkedHashMap(current.byId)
-            val keyById = LinkedHashMap(current.keyById)
+            val updated = LinkedHashMap(current)
+            updated.putAll(additions)
 
-            additions.forEach { (key, value) ->
-                byId[key.id] = value
-                keyById[key.id] = key
-            }
-
-            val updated = createSnapshot(byId, keyById)
-
-            if (state.compareAndSet(current, updated)) {
+            if (state.compareAndSet(current, immutableMap(updated))) {
                 return
             }
         }
     }
 
-    override fun registerIfAbsent(key: K, value: T): Boolean {
+    override fun <V : T> registerIfAbsent(
+        key: RegistryKey<V>,
+        value: V
+    ): Boolean = registerIfAbsent(key.id, value)
+
+    override fun registerIfAbsent(
+        id: RegistryId,
+        value: T
+    ): Boolean {
+        validateId(id)
+
         while (true) {
             val current = state.get()
 
-            if (key.id in current.byId) {
-                return false
-            }
+            if (id in current) return false
 
-            val byId = LinkedHashMap(current.byId)
-            val keyById = LinkedHashMap(current.keyById)
+            val updated = LinkedHashMap(current)
+            updated[id] = value
 
-            byId[key.id] = value
-            keyById[key.id] = key
-
-            val updated = createSnapshot(byId, keyById)
-
-            if (state.compareAndSet(current, updated)) {
+            if (state.compareAndSet(current, immutableMap(updated))) {
                 return true
             }
         }
     }
 
-    override fun registerIfAbsent(id: RegistryId, value: T): Boolean =
-        registerIfAbsent(createKey(id), value)
+    @Suppress("UNCHECKED_CAST")
+    override fun <V : T> get(key: RegistryKey<V>): V =
+        get(key.id) as V
 
-    override operator fun get(key: K): T =
-        get(key.id)
-
-    override operator fun get(id: RegistryId): T =
+    override fun get(id: RegistryId): T =
         getOrNull(id)
             ?: throw RegistryEntryNotFoundException(id.toString())
 
-    override fun getOrNull(key: K): T? =
-        getOrNull(key.id)
+    @Suppress("UNCHECKED_CAST")
+    override fun <V : T> getOrNull(key: RegistryKey<V>): V? =
+        getOrNull(key.id) as? V
 
-    override fun getOrNull(id: RegistryId): T? =
-        state.get().byId[id]
+    override fun getOrNull(id: RegistryId): T? {
+        validateId(id)
+        return state.get()[id]
+    }
 
-    override operator fun set(key: K, value: T) {
-        if (!replace(key, value)) {
-            register(key, value)
+    override fun <V : T> set(key: RegistryKey<V>, value: V) {
+        set(key.id, value)
+    }
+
+    override fun set(id: RegistryId, value: T) {
+        validateId(id)
+
+        while (true) {
+            val current = state.get()
+            val updated = LinkedHashMap(current)
+
+            updated[id] = value
+
+            if (state.compareAndSet(current, immutableMap(updated))) {
+                return
+            }
         }
     }
 
-    override operator fun set(id: RegistryId, value: T) {
-        if (!replace(id, value)) {
-            register(id, value)
-        }
-    }
-
-    override operator fun contains(key: K): Boolean =
+    override fun contains(key: RegistryKey<*>): Boolean =
         contains(key.id)
 
-    override operator fun contains(id: RegistryId): Boolean =
-        state.get().byId.containsKey(id)
+    override fun contains(id: RegistryId): Boolean {
+        validateId(id)
+        return state.get().containsKey(id)
+    }
 
-    override fun unregister(key: K): Boolean =
+    override fun unregister(key: RegistryKey<*>): Boolean =
         unregister(key.id)
 
     override fun unregister(id: RegistryId): Boolean {
+        validateId(id)
+
         while (true) {
             val current = state.get()
 
-            if (id !in current.byId) {
-                return false
-            }
+            if (id !in current) return false
 
-            val byId = LinkedHashMap(current.byId)
-            val keyById = LinkedHashMap(current.keyById)
+            val updated = LinkedHashMap(current)
+            updated.remove(id)
 
-            byId.remove(id)
-            keyById.remove(id)
-
-            val updated = createSnapshot(byId, keyById)
-
-            if (state.compareAndSet(current, updated)) {
+            if (state.compareAndSet(current, immutableMap(updated))) {
                 return true
             }
         }
     }
 
-    override fun replace(key: K, value: T): Boolean =
-        replace(key.id, value)
-
     override fun replace(id: RegistryId, value: T): Boolean {
+        validateId(id)
+
         while (true) {
             val current = state.get()
 
-            if (id !in current.byId) {
-                return false
-            }
+            if (id !in current) return false
 
-            val byId = LinkedHashMap(current.byId)
-            byId[id] = value
+            val updated = LinkedHashMap(current)
+            updated[id] = value
 
-            val updated = createSnapshot(
-                byId,
-                current.keyById
-            )
-
-            if (state.compareAndSet(current, updated)) {
+            if (state.compareAndSet(current, immutableMap(updated))) {
                 return true
             }
         }
     }
 
     override fun clear() {
-        while (true) {
-            val current = state.get()
-
-            if (current.byId.isEmpty()) {
-                return
-            }
-
-            val empty = Snapshot<K, T>(
-                byId = emptyMap(),
-                keyById = emptyMap()
-            )
-
-            if (state.compareAndSet(current, empty)) {
-                return
-            }
-        }
+        state.set(emptyMap())
     }
 
     override fun isEmpty(): Boolean =
-        state.get().byId.isEmpty()
-
-    override fun keys(): Set<K> =
-        immutableSet(state.get().keyById.values)
+        state.get().isEmpty()
 
     override fun ids(): Set<RegistryId> =
-        state.get().byId.keys
+        state.get().keys
 
-    override fun snapshot(): Map<K, T> {
-        val current = state.get()
+    override fun snapshot(): Map<RegistryId, T> =
+        state.get()
 
-        val result = LinkedHashMap<K, T>()
-
-        current.keyById.forEach { (id, key) ->
-            result[key] = current.byId.getValue(id)
-        }
-
-        return immutableMap(result)
-    }
-
-    private fun createKey(id: RegistryId): K {
-        val key = keyFactory(id)
-
-        require(key.id == id) {
-            "Generated key ID '${key.id}' does not match '$id'."
-        }
-
-        return key
-    }
-
-    private fun validateEntries(additions: Map<K, T>) {
-        val duplicates = additions.keys
-            .groupBy { it.id }
-            .filterValues { it.size > 1 }
-            .keys
-
-        if (duplicates.isNotEmpty()) {
-            throw DuplicateRegistryEntryException(
-                duplicates
-                    .sortedBy { it.toString() }
-                    .joinToString()
-            )
+    private fun validateId(id: RegistryId) {
+        require(id.namespace == namespace) {
+            "Expected namespace '$namespace', got '${id.namespace}'."
         }
     }
 
-    private fun createSnapshot(
-        byId: Map<RegistryId, T>,
-        keyById: Map<RegistryId, K>
-    ): Snapshot<K, T> =
-        Snapshot(
-            byId = immutableMap(byId),
-            keyById = immutableMap(keyById)
-        )
-
-    private fun <A, B> immutableMap(map: Map<A, B>): Map<A, B> =
+    private fun immutableMap(
+        map: Map<RegistryId, T>
+    ): Map<RegistryId, T> =
         Collections.unmodifiableMap(LinkedHashMap(map))
-
-    private fun <V> immutableSet(values: Collection<V>): Set<V> =
-        Collections.unmodifiableSet(LinkedHashSet(values))
 }

@@ -16,8 +16,13 @@ data class RegistryId(
 ) {
 
     init {
-        require(namespace.isNotBlank() && ':' !in namespace)
-        require(key.isNotBlank() && ':' !in key)
+        require(namespace.isNotBlank() && ':' !in namespace) {
+            "Invalid registry namespace: '$namespace'."
+        }
+
+        require(key.isNotBlank() && ':' !in key) {
+            "Invalid registry key: '$key'."
+        }
     }
 
     override fun toString(): String = "$namespace:$key"
@@ -25,7 +30,7 @@ data class RegistryId(
     companion object {
 
         /**
-         * Parses an identifier from `namespace:key` format.
+         * Parses an identifier in `namespace:key` format.
          *
          * @throws IllegalArgumentException If the format is invalid.
          */
@@ -41,8 +46,8 @@ data class RegistryId(
             }
 
             return RegistryId(
-                namespace = value.substring(0, separator),
-                key = value.substring(separator + 1)
+                value.substring(0, separator),
+                value.substring(separator + 1)
             )
         }
     }

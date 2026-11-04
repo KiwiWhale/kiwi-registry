@@ -3,138 +3,73 @@ package io.github.kiwiwhale.kiwiregistry
 /**
  * Contract for managing registry entries.
  *
- * Supports typed keys and RegistryId-based access.
- *
- * @param T Registered value type.
- * @param K Registry key type.
+ * @param T Base registered value type.
  */
-interface Registry<T : Any, K : RegistryKey<T>> {
+interface Registry<T : Any> {
 
-    /**
-     * Number of registered entries.
-     */
+    /** Number of registered entries. */
     val size: Int
 
-    /**
-     * Registers an entry.
-     *
-     * @throws [io.github.kiwiwhale.kiwiregistry.exception.DuplicateRegistryEntryException] If the ID already exists.
-     */
-    fun register(key: K, value: T)
+    /** Registers an entry using a typed key. */
+    fun <V : T> register(key: RegistryKey<V>, value: V)
 
-    /**
-     * Registers an entry using its ID.
-     *
-     * @throws [io.github.kiwiwhale.kiwiregistry.exception.DuplicateRegistryEntryException] If the ID already exists.
-     */
+    /** Registers an entry using its identifier. */
     fun register(id: RegistryId, value: T)
 
-    /**
-     * Registers multiple entries atomically.
-     */
-    fun registerAll(additions: Map<K, T>)
+    /** Atomically registers multiple entries. */
+    fun registerAll(additions: Map<RegistryId, T>)
 
-    /**
-     * Registers an entry only if its ID does not exist.
-     *
-     * @return true if registered, false if already present.
-     */
-    fun registerIfAbsent(key: K, value: T): Boolean
+    /** Registers an entry only if absent. */
+    fun <V : T> registerIfAbsent(
+        key: RegistryKey<V>,
+        value: V
+    ): Boolean
 
-    /**
-     * Registers an entry only if its ID does not exist.
-     */
+    /** Registers an entry only if its ID is absent. */
     fun registerIfAbsent(id: RegistryId, value: T): Boolean
 
-    /**
-     * Retrieves an entry by typed key.
-     *
-     * @throws [io.github.kiwiwhale.kiwiregistry.exception.RegistryEntryNotFoundException] If not found.
-     */
-    operator fun get(key: K): T
+    /** Retrieves an entry using a typed key. */
+    operator fun <V : T> get(key: RegistryKey<V>): V
 
-    /**
-     * Retrieves an entry by ID.
-     *
-     * @throws [io.github.kiwiwhale.kiwiregistry.exception.RegistryEntryNotFoundException]
-     * if the entry does not exist.
-     */
+    /** Retrieves an entry using its identifier. */
     operator fun get(id: RegistryId): T
 
-    /**
-     * Retrieves an entry or returns null.
-     */
-    fun getOrNull(key: K): T?
+    /** Retrieves an entry or returns null. */
+    fun <V : T> getOrNull(key: RegistryKey<V>): V?
 
-    /**
-     * Retrieves an entry or returns null.
-     */
+    /** Retrieves an entry or returns null. */
     fun getOrNull(id: RegistryId): T?
 
-    /**
-     * Registers or replaces an entry.
-     */
-    operator fun set(key: K, value: T)
+    /** Registers or replaces an entry. */
+    operator fun <V : T> set(key: RegistryKey<V>, value: V)
 
-    /**
-     * Registers or replaces an entry by ID.
-     */
+    /** Registers or replaces an entry by ID. */
     operator fun set(id: RegistryId, value: T)
 
-    /**
-     * Checks whether an entry exists.
-     */
-    operator fun contains(key: K): Boolean
+    /** Checks whether an entry exists. */
+    operator fun contains(key: RegistryKey<*>): Boolean
 
-    /**
-     * Checks whether an entry exists.
-     */
+    /** Checks whether an entry exists. */
     operator fun contains(id: RegistryId): Boolean
 
-    /**
-     * Removes an entry.
-     */
-    fun unregister(key: K): Boolean
+    /** Removes an entry. */
+    fun unregister(key: RegistryKey<*>): Boolean
 
-    /**
-     * Removes an entry by ID.
-     */
+    /** Removes an entry by ID. */
     fun unregister(id: RegistryId): Boolean
 
-    /**
-     * Replaces an existing entry.
-     *
-     * @return true if an entry was replaced.
-     */
-    fun replace(key: K, value: T): Boolean
-
-    /**
-     * Replaces an existing entry by ID.
-     */
+    /** Replaces an existing entry. */
     fun replace(id: RegistryId, value: T): Boolean
 
-    /**
-     * Removes all entries.
-     */
+    /** Removes all entries. */
     fun clear()
 
-    /**
-     * Checks whether the registry is empty.
-     */
+    /** Checks whether the registry is empty. */
     fun isEmpty(): Boolean
 
-    /**
-     * Returns all registered keys.
-     */
-    fun keys(): Set<K>
-
-    /**
-     * Returns all registered IDs.
-     */
+    /** Returns all registered identifiers. */
     fun ids(): Set<RegistryId>
 
-    /**
-     * Returns an immutable snapshot.
-     */
-    fun snapshot(): Map<K, T>
+    /** Returns an immutable snapshot. */
+    fun snapshot(): Map<RegistryId, T>
 }
