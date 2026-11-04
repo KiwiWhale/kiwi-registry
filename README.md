@@ -38,11 +38,7 @@ Add the KiwiWhale Maven repository to your `build.gradle.kts`:
 repositories {
     maven("https://repo.mrjimin.xyz/releases")
 }
-```
 
-Add the dependency:
-
-```kotlin
 dependencies {
     implementation("io.github.kiwiwhale:kiwi-registry:1.0.1")
 }
