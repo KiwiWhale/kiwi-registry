@@ -18,14 +18,14 @@ interface Registry<T : Any, K : RegistryKey<T>> {
     /**
      * Registers an entry.
      *
-     * @throws DuplicateRegistryEntryException If the ID already exists.
+     * @throws [io.github.kiwiwhale.kiwiregistry.exception.DuplicateRegistryEntryException] If the ID already exists.
      */
     fun register(key: K, value: T)
 
     /**
      * Registers an entry using its ID.
      *
-     * @throws DuplicateRegistryEntryException If the ID already exists.
+     * @throws [io.github.kiwiwhale.kiwiregistry.exception.DuplicateRegistryEntryException] If the ID already exists.
      */
     fun register(id: RegistryId, value: T)
 
@@ -49,12 +49,15 @@ interface Registry<T : Any, K : RegistryKey<T>> {
     /**
      * Retrieves an entry by typed key.
      *
-     * @throws RegistryEntryNotFoundException If not found.
+     * @throws [io.github.kiwiwhale.kiwiregistry.exception.RegistryEntryNotFoundException] If not found.
      */
     operator fun get(key: K): T
 
     /**
      * Retrieves an entry by ID.
+     *
+     * @throws [io.github.kiwiwhale.kiwiregistry.exception.RegistryEntryNotFoundException]
+     * if the entry does not exist.
      */
     operator fun get(id: RegistryId): T
 
