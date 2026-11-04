@@ -1,5 +1,5 @@
 package io.github.kiwiwhale.kiwiregistry.exception
 
 class DuplicateRegistryEntryException(
-    name: String
-) : RegistryException("Registry entry '$name' is already registered.")
+    id: String
+) : RegistryException("Registry entry '$id' is already registered.")

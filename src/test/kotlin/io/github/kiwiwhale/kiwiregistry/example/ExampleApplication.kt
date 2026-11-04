@@ -1,46 +1,49 @@
 package io.github.kiwiwhale.kiwiregistry.example
 
-import io.github.kiwiwhale.kiwiregistry.core.ConcurrentRegistry
-
-data class User(
-    val id: String,
-    val email: String
-)
+import io.github.kiwiwhale.kiwiregistry.KiwiRegistry
+import io.github.kiwiwhale.kiwiregistry.RegistryId
 
 fun main() {
 
-    val registry = ConcurrentRegistry<User, ExampleKey>(
-        keyFactory = ::ExampleKey
+    val registry = KiwiRegistry<User, UserKey>(
+        keyFactory = ::UserKey
     )
-
-    val userKey = ExampleKey("user")
 
     val user = User(
         id = "user-001",
+        name = "Kiwi",
         email = "hello@example.com"
     )
 
-    // Typed Key registration
-    registry.register(userKey, user)
+    // Registration
+    registry.register(UserKey.USER, user)
 
-    // Typed Key lookup
-    val result1 = registry.get(userKey)
+    // Get using typed key
+    val user1 = registry[UserKey.USER]
 
-    println(result1)
+    // Get using RegistryId
+    val user2 = registry[
+        RegistryId("example", "user")
+    ]
 
-    // String lookup
-    val result2 = registry.get("user")
+    // Get using get()
+    val user3 = registry[UserKey.USER]
 
-    println(result2)
+    println(user1)
+    println(user2)
+    println(user3)
 
-    // Check
-    println(registry.contains("user"))
+    // Contains
+    println(UserKey.USER in registry)
+
+    // Size
+    println(registry.size)
 
     // Snapshot
     println(registry.snapshot())
 
     // Unregister
-    registry.unregister(userKey)
+    registry.unregister(UserKey.USER)
 
     println(registry.size)
 }

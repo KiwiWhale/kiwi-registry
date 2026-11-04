@@ -2,10 +2,11 @@ plugins {
     kotlin("jvm") version "2.4.21"
     id("co.uzzu.dotenv.gradle") version "4.0.0"
     `maven-publish`
+    id("org.jetbrains.dokka") version "2.2.0"
 }
 
 group = "io.github.kiwiwhale.kiwiregistry"
-version = "1.0-SNAPSHOT"
+version = "1.0.0"
 
 repositories {
     mavenCentral()
@@ -21,6 +22,16 @@ kotlin {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+dokka {
+    dokkaPublications.html {
+        moduleName.set("KiwiRegistry")
+
+        pluginsConfiguration.html {
+            footerMessage.set("(c) KiwiWhale")
+        }
+    }
 }
 
 val mavenUsername = env.fetch("MAVEN_USERNAME")
