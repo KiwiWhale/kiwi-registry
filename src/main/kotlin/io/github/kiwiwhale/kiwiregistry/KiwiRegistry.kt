@@ -4,7 +4,6 @@ import io.github.kiwiwhale.kiwiregistry.exception.DuplicateRegistryEntryExceptio
 import io.github.kiwiwhale.kiwiregistry.exception.RegistryEntryNotFoundException
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicReference
-import kotlin.collections.contains
 
 /**
  * Thread-safe in-memory registry.

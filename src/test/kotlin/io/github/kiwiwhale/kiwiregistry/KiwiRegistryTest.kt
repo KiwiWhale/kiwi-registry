@@ -1,8 +1,5 @@
 package io.github.kiwiwhale.kiwiregistry
 
-import io.github.kiwiwhale.kiwiregistry.KiwiRegistry
-import io.github.kiwiwhale.kiwiregistry.RegistryId
-import io.github.kiwiwhale.kiwiregistry.RegistryKey
 import io.github.kiwiwhale.kiwiregistry.exception.DuplicateRegistryEntryException
 import io.github.kiwiwhale.kiwiregistry.exception.RegistryEntryNotFoundException
 import java.util.concurrent.Callable
