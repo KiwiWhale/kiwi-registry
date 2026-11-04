@@ -34,8 +34,8 @@ dokka {
     }
 }
 
-val mavenUsername = env.fetch("MAVEN_USERNAME")
-val mavenPassword = env.fetch("MAVEN_PASSWORD")
+val mavenUsername = if (env.isPresent("MAVEN_USERNAME")) env.fetch("MAVEN_USERNAME") else ""
+val mavenPassword = if (env.isPresent("MAVEN_PASSWORD")) env.fetch("MAVEN_PASSWORD") else ""
 
 publishing {
     repositories {
@@ -43,11 +43,10 @@ publishing {
             name = "mrjiminRepository"
 
             url = uri(
-                if (project.version.toString().endsWith("-SNAPSHOT")) {
+                if (version.toString().endsWith("-SNAPSHOT"))
                     "https://repo.mrjimin.xyz/snapshots"
-                } else {
+                else
                     "https://repo.mrjimin.xyz/releases"
-                }
             )
 
             credentials {
