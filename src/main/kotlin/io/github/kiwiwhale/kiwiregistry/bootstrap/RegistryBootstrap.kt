@@ -3,6 +3,8 @@ package io.github.kiwiwhale.kiwiregistry.bootstrap
 import io.github.kiwiwhale.kiwiregistry.core.Registry
 import io.github.kiwiwhale.kiwiregistry.core.RegistryGraph
 import io.github.kiwiwhale.kiwiregistry.core.RegistryKey
+import io.github.kiwiwhale.kiwiregistry.exception.BootstrapAlreadyCompletedException
+import io.github.kiwiwhale.kiwiregistry.exception.BootstrapInProgressException
 import io.github.kiwiwhale.kiwiregistry.exception.BootstrapNotCompletedException
 import io.github.kiwiwhale.kiwiregistry.exception.DuplicateContributionException
 import io.github.kiwiwhale.kiwiregistry.exception.InvalidContributionException
@@ -29,8 +31,10 @@ internal class RegistryBootstrap {
 
     @Synchronized
     fun submit(contribution: Contribution) {
-        check(state == BootstrapState.CREATED) {
-            "Contributions can only be submitted before bootstrap."
+        when (state) {
+            BootstrapState.CREATED -> Unit
+            BootstrapState.BUILDING -> throw BootstrapInProgressException()
+            BootstrapState.COMPLETED -> throw BootstrapAlreadyCompletedException()
         }
 
         if (contributions.any { it.holder === contribution.holder }) {
@@ -46,8 +50,10 @@ internal class RegistryBootstrap {
 
     @Synchronized
     fun build() {
-        check(state == BootstrapState.CREATED) {
-            "Bootstrap cannot be built in state: $state"
+        when (state) {
+            BootstrapState.CREATED -> Unit
+            BootstrapState.BUILDING -> throw BootstrapInProgressException()
+            BootstrapState.COMPLETED -> throw BootstrapAlreadyCompletedException()
         }
 
         state = BootstrapState.BUILDING
@@ -77,8 +83,10 @@ internal class RegistryBootstrap {
 
     @Synchronized
     fun rebuildRegistries(holder: RegistryHolder) {
-        check(state == BootstrapState.COMPLETED) {
-            throw BootstrapNotCompletedException()
+        when (state) {
+            BootstrapState.CREATED -> throw BootstrapNotCompletedException()
+            BootstrapState.BUILDING -> throw BootstrapInProgressException()
+            BootstrapState.COMPLETED -> Unit
         }
 
         val index = snapshots.indexOfFirst {
@@ -161,8 +169,8 @@ internal class RegistryBootstrap {
 
             val mutableRegistry = MutableRegistry(typedKey)
 
-            for ((holder, registries1) in snapshots) {
-                val entries = registries1[key]
+            for ((holder, holderRegistries) in snapshots) {
+                val entries = holderRegistries[key]
                     ?: continue
 
                 entries.forEach { (entryKey, value) ->

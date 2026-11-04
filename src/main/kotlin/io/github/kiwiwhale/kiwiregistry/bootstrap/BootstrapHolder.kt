@@ -21,4 +21,8 @@ interface BootstrapHolder {
     fun rebuildRegistries(holder: RegistryHolder) {
         BootstrapHolderState.get(this).rebuildRegistries(holder)
     }
+
+    fun dispose() {
+        BootstrapHolderState.remove(this)
+    }
 }

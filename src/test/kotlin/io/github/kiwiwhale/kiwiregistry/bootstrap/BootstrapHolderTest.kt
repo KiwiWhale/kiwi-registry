@@ -98,4 +98,17 @@ class BootstrapHolderTest {
             holder.registry(registryKey)
         }
     }
+
+    @Test
+    fun `dispose 이후 BootstrapHolder를 사용할 수 없다`() {
+        val bootstrap = TestBootstrapHolder()
+
+        bootstrap.inject()
+
+        bootstrap.dispose()
+
+        assertFailsWith<BootstrapNotInjectedException> {
+            bootstrap.registry(registryKey)
+        }
+    }
 }

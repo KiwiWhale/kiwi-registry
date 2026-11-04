@@ -35,3 +35,13 @@ class BootstrapNotInjectedException :
     BootstrapException(
         "BootstrapHolder has not been injected yet."
     )
+
+class BootstrapInProgressException :
+    BootstrapException(
+        "Bootstrap is currently in progress."
+    )
+
+class BootstrapNotCreatedException :
+    BootstrapException(
+        "Bootstrap is not in the created state."
+    )

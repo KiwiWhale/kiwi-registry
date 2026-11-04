@@ -3,6 +3,8 @@ package io.github.kiwiwhale.kiwiregistry.bootstrap
 import io.github.kiwiwhale.kiwiregistry.core.RegistryId
 import io.github.kiwiwhale.kiwiregistry.core.RegistryKey
 import io.github.kiwiwhale.kiwiregistry.exception.BootstrapAlreadyCompletedException
+import io.github.kiwiwhale.kiwiregistry.exception.BootstrapInProgressException
+import io.github.kiwiwhale.kiwiregistry.exception.BootstrapNotCompletedException
 import io.github.kiwiwhale.kiwiregistry.exception.DuplicateContributionException
 import io.github.kiwiwhale.kiwiregistry.exception.InvalidContributionException
 import kotlin.test.Test
@@ -426,5 +428,142 @@ class RegistryBootstrapTest {
             "Sword",
             bootstrap.getRegistry(registryKey)["sword"]
         )
+    }
+
+    @Test
+    fun `Bootstrap 진행 중 Contribution 등록을 방지한다`() {
+        val bootstrap = RegistryBootstrap()
+        val holder = TestHolder()
+
+        bootstrap.submit(
+            contribution(holder) {
+                pre {
+                    assertFailsWith<BootstrapInProgressException> {
+                        bootstrap.submit(
+                            contribution(TestHolder()) {}
+                        )
+                    }
+                }
+            }
+        )
+
+        bootstrap.build()
+
+        assertEquals(true, bootstrap.isInitialized)
+    }
+
+    @Test
+    fun `Bootstrap 진행 중 중복 빌드를 방지한다`() {
+        val bootstrap = RegistryBootstrap()
+
+        bootstrap.submit(
+            contribution(TestHolder()) {
+                pre {
+                    assertFailsWith<BootstrapInProgressException> {
+                        bootstrap.build()
+                    }
+                }
+            }
+        )
+
+        bootstrap.build()
+
+        assertEquals(true, bootstrap.isInitialized)
+    }
+
+    @Test
+    fun `빌드 완료 후 Contribution 등록을 방지한다`() {
+        val bootstrap = RegistryBootstrap()
+
+        bootstrap.build()
+
+        assertFailsWith<BootstrapAlreadyCompletedException> {
+            bootstrap.submit(
+                contribution(TestHolder()) {}
+            )
+        }
+    }
+
+    @Test
+    fun `재구축 PreHook 실패 시 기존 Registry를 유지한다`() {
+        val bootstrap = RegistryBootstrap()
+        val holder = TestHolder()
+
+        var shouldFail = false
+
+        bootstrap.submit(
+            contribution(holder) {
+                pre {
+                    if (shouldFail) {
+                        error("PreHook failed")
+                    }
+                }
+
+                registry(registryKey) {
+                    add("sword", "Sword")
+                }
+            }
+        )
+
+        bootstrap.build()
+
+        shouldFail = true
+
+        assertFailsWith<IllegalStateException> {
+            bootstrap.rebuildRegistries(holder)
+        }
+
+        assertEquals(
+            "Sword",
+            bootstrap.getRegistry(registryKey)["sword"]
+        )
+
+        assertEquals(true, bootstrap.isInitialized)
+    }
+
+    @Test
+    fun `재구축 PostHook 실패 시 새로운 Registry를 유지한다`() {
+        val bootstrap = RegistryBootstrap()
+        val holder = TestHolder()
+
+        var itemName = "Sword"
+
+        bootstrap.submit(
+            contribution(holder) {
+                registry(registryKey) {
+                    add("weapon", itemName)
+                }
+
+                post {
+                    if (itemName == "Diamond Sword") {
+                        error("PostHook failed")
+                    }
+                }
+            }
+        )
+
+        bootstrap.build()
+
+        itemName = "Diamond Sword"
+
+        assertFailsWith<IllegalStateException> {
+            bootstrap.rebuildRegistries(holder)
+        }
+
+        assertEquals(
+            "Diamond Sword",
+            bootstrap.getRegistry(registryKey)["weapon"]
+        )
+
+        assertEquals(true, bootstrap.isInitialized)
+    }
+
+    @Test
+    fun `빌드 전 Registry 재구축을 방지한다`() {
+        val bootstrap = RegistryBootstrap()
+
+        assertFailsWith<BootstrapNotCompletedException> {
+            bootstrap.rebuildRegistries(TestHolder())
+        }
     }
 }
