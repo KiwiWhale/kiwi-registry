@@ -1,19 +1,35 @@
 package io.github.kiwiwhale.kiwiregistry.bootstrap
 
-import io.github.kiwiwhale.kiwiregistry.RegistryKey
-import io.github.kiwiwhale.kiwiregistry.core.FrozenRegistry
+import io.github.kiwiwhale.kiwiregistry.core.Registry
+import io.github.kiwiwhale.kiwiregistry.core.RegistryKey
 
 interface BootstrapHolder {
 
-    val bootstrap: Bootstrap
+    fun inject(): () -> Unit {
+        val bootstrap = RegistryBootstrap()
 
-    operator fun <T : Any> get(
-        key: RegistryKey<T>
-    ): FrozenRegistry<T> =
-        bootstrap[key]
+        BootstrapHolderState.set(this, bootstrap)
 
-    fun <T : Any> getOrNull(
-        key: RegistryKey<T>
-    ): FrozenRegistry<T>? =
-        bootstrap.getOrNull(key)
+        return {
+            bootstrap.build()
+        }
+    }
+
+    fun <K, V> registry(
+        key: RegistryKey<K, V>
+    ): Registry<K, V> {
+        return BootstrapHolderState
+            .get(this)
+            .getRegistry(key)
+    }
+
+    operator fun <K, V> get(
+        key: RegistryKey<K, V>
+    ): Registry<K, V> = registry(key)
+
+    fun rebuildRegistries(holder: RegistryHolder) {
+        BootstrapHolderState
+            .get(this)
+            .rebuildRegistries(holder)
+    }
 }

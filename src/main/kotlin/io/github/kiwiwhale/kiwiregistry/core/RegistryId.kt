@@ -1,4 +1,4 @@
-package io.github.kiwiwhale.kiwiregistry
+package io.github.kiwiwhale.kiwiregistry.core
 
 data class RegistryId(
     val namespace: String,
@@ -24,25 +24,11 @@ data class RegistryId(
     }
 
     companion object {
-        fun of(
-            namespace: String,
-            key: String
-        ): RegistryId =
-            RegistryId(namespace, key)
-
         fun parse(value: String): RegistryId {
             val separator = value.indexOf(':')
 
-            require(separator > 0) {
-                "Invalid registry ID: '$value'."
-            }
-
-            require(separator == value.lastIndexOf(':')) {
-                "Invalid registry ID: '$value'."
-            }
-
-            require(separator < value.lastIndex) {
-                "Invalid registry ID: '$value'."
+            require(separator > 0 && separator < value.lastIndex) {
+                "Invalid registry ID: $value"
             }
 
             return RegistryId(
