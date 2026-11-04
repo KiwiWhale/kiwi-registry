@@ -131,6 +131,22 @@ class KiwiRegistry<T : Any>(
         registerAll(keyedAdditions)
     }
 
+    override fun registerAllById(
+        additions: Map<RegistryId, T>
+    ) {
+        if (additions.isEmpty()) return
+
+        val keyedAdditions = LinkedHashMap<RegistryKey<T>, T>()
+
+        additions.forEach { (id, value) ->
+            validateId(id)
+
+            keyedAdditions[defaultKey(id)] = value
+        }
+
+        registerAll(keyedAdditions)
+    }
+
     override fun registerIfAbsent(
         name: String,
         value: T

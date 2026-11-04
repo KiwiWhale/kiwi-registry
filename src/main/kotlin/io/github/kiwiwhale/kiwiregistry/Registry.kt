@@ -34,6 +34,10 @@ interface Registry<T : Any> {
         additions: Map<String, T>
     )
 
+    fun registerAllById(
+        additions: Map<RegistryId, T>
+    )
+
     fun registerIfAbsent(name: String, value: T): Boolean
 
     fun registerIfAbsent(id: RegistryId, value: T): Boolean
