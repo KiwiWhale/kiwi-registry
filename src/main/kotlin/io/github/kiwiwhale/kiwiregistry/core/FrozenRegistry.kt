@@ -13,10 +13,21 @@ interface FrozenRegistry<T : Any> : Registry<T> {
         fun <T : Any> of(
             id: RegistryId,
             entries: Map<String, T>
-        ): FrozenRegistry<T> =
-            FrozenRegistryImpl(
+        ): FrozenRegistry<T> {
+            entries.keys.forEach { key ->
+                require(key.isNotBlank()) {
+                    "Registry key cannot be blank."
+                }
+
+                require(':' !in key) {
+                    "Registry key cannot contain ':'."
+                }
+            }
+
+            return FrozenRegistryImpl(
                 id,
                 RegistrySnapshot(entries)
             )
+        }
     }
 }

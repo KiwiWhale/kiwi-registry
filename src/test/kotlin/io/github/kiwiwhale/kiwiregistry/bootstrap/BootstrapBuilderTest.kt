@@ -1,7 +1,6 @@
 package io.github.kiwiwhale.kiwiregistry.bootstrap
 
 import io.github.kiwiwhale.kiwiregistry.RegistryKey
-import io.github.kiwiwhale.kiwiregistry.exception.DuplicateEntryException
 import io.github.kiwiwhale.kiwiregistry.exception.DuplicateRegistryException
 import kotlin.test.Test
 import kotlin.test.assertEquals

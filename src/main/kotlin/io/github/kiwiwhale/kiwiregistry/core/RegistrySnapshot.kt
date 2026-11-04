@@ -1,7 +1,6 @@
 package io.github.kiwiwhale.kiwiregistry.core
 
 import java.util.Collections
-import java.util.LinkedHashMap
 
 class RegistrySnapshot<T : Any> internal constructor(
     entries: Map<String, T>
