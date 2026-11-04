@@ -40,7 +40,7 @@ repositories {
 }
 
 dependencies {
-    implementation("io.github.kiwiwhale:kiwi-registry:1.1.0")
+    implementation("io.github.kiwiwhale:kiwi-registry:1.1.1")
 }
 ```
 

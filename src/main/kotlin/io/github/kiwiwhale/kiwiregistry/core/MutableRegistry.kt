@@ -6,15 +6,9 @@ import io.github.kiwiwhale.kiwiregistry.RegistryKey
 
 interface MutableRegistry<T : Any> : Registry<T> {
 
-    fun register(
-        key: String,
-        value: T
-    )
+    fun register(key: String, value: T)
 
-    fun register(
-        key: RegistryKey<T>,
-        value: T
-    ) {
+    fun register(key: RegistryKey<T>, value: T) {
         require(key.id.namespace == id.namespace) {
             "Registry namespace mismatch."
         }
@@ -22,23 +16,27 @@ interface MutableRegistry<T : Any> : Registry<T> {
         register(key.id.key, value)
     }
 
-    fun registerAll(
-        entries: Map<String, T>
-    )
+    fun registerAll(entries: Map<String, T>)
 
-    fun registerIfAbsent(
-        key: String,
-        value: T
-    ): Boolean
+    fun registerAllByKey(
+        entries: Map<RegistryKey<T>, T>
+    ) {
+        entries.keys.forEach { key ->
+            require(key.id.namespace == id.namespace) {
+                "Registry namespace mismatch."
+            }
+        }
 
-    fun replace(
-        key: String,
-        value: T
-    ): Boolean
+        registerAll(
+            entries.mapKeys { it.key.id.key }
+        )
+    }
 
-    fun unregister(
-        key: String
-    ): Boolean
+    fun registerIfAbsent(key: String, value: T): Boolean
+
+    fun replace(key: String, value: T): Boolean
+
+    fun unregister(key: String): Boolean
 
     fun clear()
 
