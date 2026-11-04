@@ -7,8 +7,8 @@ import io.github.kiwiwhale.kiwiregistry.exception.DuplicateRegistryEntryExceptio
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertNull
 import kotlin.test.assertNotSame
+import kotlin.test.assertNull
 
 class RegistryTest {
 
