@@ -36,9 +36,7 @@ Add the KiwiWhale Maven repository to your `build.gradle.kts`:
 
 ```kotlin
 repositories {
-    maven {
-        url = uri("https://repo.mrjimin.xyz/releases")
-    }
+    maven("https://repo.mrjimin.xyz/releases")
 }
 ```
 
