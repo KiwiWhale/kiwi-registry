@@ -4,8 +4,7 @@ class RegistryGraph internal constructor(
     registries: Map<RegistryKey<*, *>, Registry<*, *>>
 ) {
 
-    private val registries =
-        registries.toMap()
+    private val registries = registries.toMap()
 
     @Suppress("UNCHECKED_CAST")
     fun <K, V> getRegistry(
@@ -37,7 +36,7 @@ class RegistryGraph internal constructor(
         return RegistryGraph(updated)
     }
 
-    fun contains(key: RegistryKey<*, *>): Boolean =
+    operator fun contains(key: RegistryKey<*, *>): Boolean =
         key in registries
 
     val size: Int

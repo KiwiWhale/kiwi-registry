@@ -5,10 +5,20 @@ import io.github.kiwiwhale.kiwiregistry.core.RegistryGraph
 import io.github.kiwiwhale.kiwiregistry.core.RegistryKey
 import io.github.kiwiwhale.kiwiregistry.exception.BootstrapAlreadyCompletedException
 import io.github.kiwiwhale.kiwiregistry.exception.DuplicateContributionException
+import io.github.kiwiwhale.kiwiregistry.exception.InvalidContributionException
+import io.github.kiwiwhale.kiwiregistry.registry.MutableRegistry
 
 internal class RegistryBootstrap {
 
+    private data class HolderSnapshot(
+        val holder: RegistryHolder,
+        val registries: Map<RegistryKey<*, *>, Map<*, *>>
+    )
+
     private val contributions = ArrayList<Contribution>()
+    private var snapshots = emptyList<HolderSnapshot>()
+
+    @Volatile
     private var currentGraph: RegistryGraph? = null
 
     val isInitialized: Boolean
@@ -37,9 +47,14 @@ internal class RegistryBootstrap {
             contribution.preHooks.forEach { it() }
         }
 
-        val graph = buildGraph(contributions)
+        val newSnapshots = contributions.map { contribution ->
+            evaluate(contribution)
+        }
 
-        currentGraph = graph
+        val newGraph = createGraph(newSnapshots)
+
+        snapshots = newSnapshots
+        currentGraph = newGraph
 
         contributions.forEach { contribution ->
             contribution.postHooks.forEach { it() }
@@ -48,17 +63,33 @@ internal class RegistryBootstrap {
 
     @Synchronized
     fun rebuildRegistries(holder: RegistryHolder) {
-        val current = currentGraph
-            ?: error("Registry bootstrap has not been completed")
+        if (!isInitialized) {
+            throw InvalidContributionException("Registry bootstrap has not been completed")
+        }
 
-        val contribution = contributions.firstOrNull {
+        val index = snapshots.indexOfFirst {
             it.holder === holder
-        } ?: throw IllegalArgumentException("No contribution found for holder: ${holder::class.qualifiedName}")
+        }
 
+        if (index == -1) {
+            throw InvalidContributionException(
+                "No contribution found for holder: ${holder::class.qualifiedName}"
+            )
+        }
+
+        val contribution = contributions[index]
         contribution.preHooks.forEach { it() }
 
-        val rebuiltGraph = buildGraph(contributions)
-        currentGraph = rebuiltGraph
+        val updatedSnapshot = evaluate(contribution)
+
+        val updatedSnapshots = snapshots.toMutableList().apply {
+            set(index, updatedSnapshot)
+        }
+
+        val updatedGraph = createGraph(updatedSnapshots)
+
+        snapshots = updatedSnapshots
+        currentGraph = updatedGraph
 
         contribution.postHooks.forEach { it() }
     }
@@ -74,44 +105,67 @@ internal class RegistryBootstrap {
         return graph().getRegistry(key)
     }
 
-    private fun buildGraph(
-        contributions: List<Contribution>
-    ): RegistryGraph {
-        val definitions = LinkedHashMap<RegistryKey<*, *>, RegistryDefinition<*, *>>()
+    @Suppress("UNCHECKED_CAST")
+    private fun evaluate(
+        contribution: Contribution
+    ): HolderSnapshot {
 
-        contributions.forEach { contribution ->
-            contribution.registries.forEach { (key, builder) ->
-                addDefinition(
-                    definitions,
-                    key,
-                    contribution.holder,
-                    builder
-                )
-            }
+        val registries =
+            LinkedHashMap<RegistryKey<*, *>, Map<*, *>>()
+
+        for ((key, builder) in contribution.registries) {
+
+            val typedKey = key as RegistryKey<Any?, Any?>
+
+            val typedBuilder = builder as RegistryContributionBuilder<Any?, Any?>.() -> Unit
+
+            val registryBuilder =
+                RegistryContributionBuilder(typedKey)
+
+            registryBuilder.typedBuilder()
+
+            registries[key] = registryBuilder.entries.toMap()
         }
 
-        val registries = definitions.values
-            .map { it.build() }
-            .associateBy { it.registryKey }
-
-        return RegistryGraph(registries)
+        return HolderSnapshot(contribution.holder, registries.toMap())
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun addDefinition(
-        definitions: MutableMap<RegistryKey<*, *>, RegistryDefinition<*, *>>,
-        key: RegistryKey<*, *>,
-        holder: RegistryHolder,
-        builder: RegistryContributionBuilder<*, *>.() -> Unit
-    ) {
-        val typedKey = key as RegistryKey<Any?, Any?>
+    private fun createGraph(
+        snapshots: List<HolderSnapshot>
+    ): RegistryGraph {
 
-        val definition = definitions.getOrPut(key) {
-            RegistryDefinition(typedKey)
-        } as RegistryDefinition<Any?, Any?>
+        val keys = LinkedHashSet<RegistryKey<*, *>>()
 
-        val typedBuilder = builder as RegistryContributionBuilder<Any?, Any?>.() -> Unit
+        snapshots.forEach { snapshot ->
+            keys.addAll(snapshot.registries.keys)
+        }
 
-        definition.add(holder, typedBuilder)
+        val registries = LinkedHashMap<RegistryKey<*, *>, Registry<*, *>>()
+
+        for (key in keys) {
+
+            val typedKey = key as RegistryKey<Any?, Any?>
+
+            val mutableRegistry = MutableRegistry(typedKey)
+
+            for ((holder, registries1) in snapshots) {
+
+                val entries = registries1[key] as? Map<Any?, Any?>
+                    ?: continue
+
+                entries.forEach { (entryKey, value) ->
+                    mutableRegistry.register(
+                        holder,
+                        entryKey,
+                        value
+                    )
+                }
+            }
+
+            registries[key] = mutableRegistry.freeze()
+        }
+
+        return RegistryGraph(registries)
     }
 }

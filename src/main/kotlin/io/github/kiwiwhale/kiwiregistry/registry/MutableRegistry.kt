@@ -10,9 +10,7 @@ class MutableRegistry<K, V>(
 ) : Registry<K, V> {
 
     private val mutableData = LinkedHashMap<K, V>()
-
-    private val mutableHolderData =
-        LinkedHashMap<RegistryHolder, LinkedHashMap<K, V>>()
+    private val mutableHolderData = LinkedHashMap<RegistryHolder, LinkedHashMap<K, V>>()
 
     override val data: Map<K, V>
         get() = mutableData.toMap()

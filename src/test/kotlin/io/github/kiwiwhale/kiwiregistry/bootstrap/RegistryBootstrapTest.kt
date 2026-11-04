@@ -322,4 +322,44 @@ class RegistryBootstrapTest {
         assertEquals("Sword", current["sword"])
         assertEquals(original.data, current.data)
     }
+
+    @Test
+    fun `특정 Holder만 재구축한다`() {
+        val bootstrap = RegistryBootstrap()
+
+        val firstHolder = TestHolder()
+        val secondHolder = TestHolder()
+
+        var firstValue = "First"
+        var secondBuildCount = 0
+
+        bootstrap.submit(
+            contribution(firstHolder) {
+                registry(registryKey) {
+                    add("first", firstValue)
+                }
+            }
+        )
+
+        bootstrap.submit(
+            contribution(secondHolder) {
+                registry(registryKey) {
+                    secondBuildCount++
+                    add("second", "Second")
+                }
+            }
+        )
+
+        bootstrap.build()
+
+        firstValue = "Updated"
+
+        bootstrap.rebuildRegistries(firstHolder)
+
+        val registry = bootstrap.getRegistry(registryKey)
+
+        assertEquals("Updated", registry["first"])
+        assertEquals("Second", registry["second"])
+        assertEquals(1, secondBuildCount)
+    }
 }
