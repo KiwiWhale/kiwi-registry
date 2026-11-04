@@ -30,3 +30,8 @@ class InvalidContributionException(
     message: String,
     cause: Throwable? = null
 ) : BootstrapException(message, cause)
+
+class BootstrapNotInjectedException :
+    BootstrapException(
+        "BootstrapHolder has not been injected yet."
+    )

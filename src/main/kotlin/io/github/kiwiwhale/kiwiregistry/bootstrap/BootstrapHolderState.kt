@@ -1,7 +1,7 @@
 package io.github.kiwiwhale.kiwiregistry.bootstrap
 
 import io.github.kiwiwhale.kiwiregistry.exception.BootstrapAlreadyInjectedException
-import io.github.kiwiwhale.kiwiregistry.exception.BootstrapNotCompletedException
+import io.github.kiwiwhale.kiwiregistry.exception.BootstrapNotInjectedException
 import java.util.IdentityHashMap
 
 internal object BootstrapHolderState {
@@ -22,7 +22,8 @@ internal object BootstrapHolderState {
     }
 
     @Synchronized
-    fun get(holder: BootstrapHolder): RegistryBootstrap =
-        bootstraps[holder]
-            ?: throw BootstrapNotCompletedException()
+    fun get(holder: BootstrapHolder): RegistryBootstrap {
+        return bootstraps[holder]
+            ?: throw BootstrapNotInjectedException()
+    }
 }
