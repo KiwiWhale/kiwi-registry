@@ -95,4 +95,22 @@ class RegistryTest {
             registry.holderData[TestHolder]
         )
     }
+
+    @Test
+    fun `null 값도 정상적으로 제거된다`() {
+        val nullableKey = RegistryKey.simple<String, String?>(
+            RegistryId("test", "nullable_items")
+        )
+
+        val registry = MutableRegistry(nullableKey)
+
+        registry.register(TestHolder, "empty", null)
+
+        val removed = registry.unregister(TestHolder, "empty")
+
+        assertNull(removed)
+        assertNull(registry["empty"])
+        assertEquals(0, registry.size)
+        assertNull(registry.holderData[TestHolder])
+    }
 }

@@ -2,7 +2,7 @@ package io.github.kiwiwhale.kiwiregistry.bootstrap
 
 import io.github.kiwiwhale.kiwiregistry.core.RegistryKey
 
-internal class Contribution(
+internal data class Contribution(
     val holder: RegistryHolder,
     val registries: Map<RegistryKey<*, *>, RegistryContributionBuilder<*, *>.() -> Unit>,
     val preHooks: List<() -> Unit>,

@@ -45,8 +45,8 @@ class MutableRegistry<K, V>(
         val holderEntries = mutableHolderData[holder]
             ?: return null
 
+        if (key !in holderEntries) return null
         val value = holderEntries.remove(key)
-            ?: return null
 
         mutableData.remove(key)
 

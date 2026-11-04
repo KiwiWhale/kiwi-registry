@@ -6,8 +6,7 @@ import java.util.IdentityHashMap
 
 internal object BootstrapHolderState {
 
-    private val bootstraps =
-        IdentityHashMap<BootstrapHolder, RegistryBootstrap>()
+    private val bootstraps = IdentityHashMap<BootstrapHolder, RegistryBootstrap>()
 
     @Synchronized
     fun set(
@@ -25,5 +24,10 @@ internal object BootstrapHolderState {
     fun get(holder: BootstrapHolder): RegistryBootstrap {
         return bootstraps[holder]
             ?: throw BootstrapNotInjectedException()
+    }
+
+    @Synchronized
+    fun remove(holder: BootstrapHolder) {
+        bootstraps.remove(holder)
     }
 }
