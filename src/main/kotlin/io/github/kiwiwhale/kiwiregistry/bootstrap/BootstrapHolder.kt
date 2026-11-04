@@ -7,29 +7,18 @@ interface BootstrapHolder {
 
     fun inject(): () -> Unit {
         val bootstrap = RegistryBootstrap()
-
         BootstrapHolderState.set(this, bootstrap)
 
-        return {
-            bootstrap.build()
-        }
+        return bootstrap::build
     }
 
-    fun <K, V> registry(
-        key: RegistryKey<K, V>
-    ): Registry<K, V> {
-        return BootstrapHolderState
-            .get(this)
-            .getRegistry(key)
-    }
+    fun <K, V> registry(key: RegistryKey<K, V>): Registry<K, V> =
+        BootstrapHolderState.get(this).getRegistry(key)
 
-    operator fun <K, V> get(
-        key: RegistryKey<K, V>
-    ): Registry<K, V> = registry(key)
+    operator fun <K, V> get(key: RegistryKey<K, V>): Registry<K, V> =
+        registry(key)
 
     fun rebuildRegistries(holder: RegistryHolder) {
-        BootstrapHolderState
-            .get(this)
-            .rebuildRegistries(holder)
+        BootstrapHolderState.get(this).rebuildRegistries(holder)
     }
 }

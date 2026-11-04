@@ -6,9 +6,7 @@ interface RegistryHolder {
         bootstrap: BootstrapHolder,
         builder: ContributionBuilder.() -> Unit
     ) {
-        val contributionBuilder = ContributionBuilder()
-
-        contributionBuilder.builder()
+        val contributionBuilder = ContributionBuilder().apply(builder)
 
         BootstrapHolderState
             .get(bootstrap)

@@ -1,26 +1,28 @@
 package io.github.kiwiwhale.kiwiregistry.bootstrap
 
+import io.github.kiwiwhale.kiwiregistry.exception.BootstrapAlreadyInjectedException
+import io.github.kiwiwhale.kiwiregistry.exception.BootstrapNotCompletedException
 import java.util.IdentityHashMap
 
 internal object BootstrapHolderState {
 
-    private val bootstraps = IdentityHashMap<BootstrapHolder, RegistryBootstrap>()
+    private val bootstraps =
+        IdentityHashMap<BootstrapHolder, RegistryBootstrap>()
 
     @Synchronized
     fun set(
         holder: BootstrapHolder,
         bootstrap: RegistryBootstrap
     ) {
-        check(holder !in bootstraps) {
-            "BootstrapHolder already injected"
+        if (holder in bootstraps) {
+            throw BootstrapAlreadyInjectedException()
         }
 
         bootstraps[holder] = bootstrap
     }
 
     @Synchronized
-    fun get(holder: BootstrapHolder): RegistryBootstrap {
-        return bootstraps[holder]
-            ?: error("BootstrapHolder has not been injected")
-    }
+    fun get(holder: BootstrapHolder): RegistryBootstrap =
+        bootstraps[holder]
+            ?: throw BootstrapNotCompletedException()
 }

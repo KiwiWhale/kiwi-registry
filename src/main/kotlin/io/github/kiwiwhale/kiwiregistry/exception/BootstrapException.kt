@@ -1,28 +1,32 @@
 package io.github.kiwiwhale.kiwiregistry.exception
 
-import io.github.kiwiwhale.kiwiregistry.bootstrap.RegistryHolder
-
 open class BootstrapException(
     message: String,
     cause: Throwable? = null
 ) : RegistryException(message, cause)
 
 class BootstrapAlreadyCompletedException :
-    BootstrapException("Bootstrap has already been completed")
+    BootstrapException(
+        "Bootstrap has already been completed."
+    )
+
+class BootstrapNotCompletedException :
+    BootstrapException(
+        "Bootstrap has not been completed yet."
+    )
+
+class BootstrapAlreadyInjectedException :
+    BootstrapException(
+        "BootstrapHolder has already been injected."
+    )
 
 class DuplicateContributionException(
-    holder: RegistryHolder
+    holderName: String
 ) : BootstrapException(
-    "Contribution from holder ${holder::class.qualifiedName} is already registered"
-)
-
-class DuplicateRegistryEntryException(
-    registryId: String,
-    key: Any?
-) : RegistryException(
-    "Duplicate registry entry: $registryId / $key"
+    "Contribution from holder '$holderName' is already registered."
 )
 
 class InvalidContributionException(
-    message: String
-) : BootstrapException(message)
+    message: String,
+    cause: Throwable? = null
+) : BootstrapException(message, cause)

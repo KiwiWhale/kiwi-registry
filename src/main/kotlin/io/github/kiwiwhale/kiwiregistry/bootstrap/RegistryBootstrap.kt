@@ -4,6 +4,7 @@ import io.github.kiwiwhale.kiwiregistry.core.Registry
 import io.github.kiwiwhale.kiwiregistry.core.RegistryGraph
 import io.github.kiwiwhale.kiwiregistry.core.RegistryKey
 import io.github.kiwiwhale.kiwiregistry.exception.BootstrapAlreadyCompletedException
+import io.github.kiwiwhale.kiwiregistry.exception.BootstrapNotCompletedException
 import io.github.kiwiwhale.kiwiregistry.exception.DuplicateContributionException
 import io.github.kiwiwhale.kiwiregistry.exception.InvalidContributionException
 import io.github.kiwiwhale.kiwiregistry.registry.MutableRegistry
@@ -16,22 +17,28 @@ internal class RegistryBootstrap {
     )
 
     private val contributions = ArrayList<Contribution>()
+
     private var snapshots = emptyList<HolderSnapshot>()
 
     @Volatile
     private var currentGraph: RegistryGraph? = null
 
+    @Volatile
+    private var state = BootstrapState.CREATED
+
     val isInitialized: Boolean
-        get() = currentGraph != null
+        get() = state == BootstrapState.COMPLETED
 
     @Synchronized
     fun submit(contribution: Contribution) {
-        if (isInitialized) {
-            throw BootstrapAlreadyCompletedException()
-        }
+        checkNotCompleted()
 
         if (contributions.any { it.holder === contribution.holder }) {
-            throw DuplicateContributionException(contribution.holder)
+            throw DuplicateContributionException(
+                contribution.holder::class.qualifiedName
+                    ?: contribution.holder::class.simpleName
+                    ?: "Unknown"
+            )
         }
 
         contributions += contribution
@@ -39,32 +46,38 @@ internal class RegistryBootstrap {
 
     @Synchronized
     fun build() {
-        if (isInitialized) {
-            throw BootstrapAlreadyCompletedException()
+        checkNotCompleted()
+
+        check(state == BootstrapState.CREATED) {
+            "Bootstrap is currently being built."
         }
 
-        contributions.forEach { contribution ->
-            contribution.preHooks.forEach { it() }
+        state = BootstrapState.BUILDING
+
+        try {
+            contributions.forEach { contribution ->
+                contribution.preHooks.forEach { it() }
+            }
+
+            val newSnapshots = contributions.map(::evaluate)
+            val newGraph = createGraph(newSnapshots)
+
+            snapshots = newSnapshots
+            currentGraph = newGraph
+            state = BootstrapState.COMPLETED
+
+        } catch (exception: Exception) {
+            state = BootstrapState.CREATED
+            throw exception
         }
 
-        val newSnapshots = contributions.map { contribution ->
-            evaluate(contribution)
-        }
-
-        val newGraph = createGraph(newSnapshots)
-
-        snapshots = newSnapshots
-        currentGraph = newGraph
-
-        contributions.forEach { contribution ->
-            contribution.postHooks.forEach { it() }
-        }
+        runPostHooks(contributions)
     }
 
     @Synchronized
     fun rebuildRegistries(holder: RegistryHolder) {
-        if (!isInitialized) {
-            throw InvalidContributionException("Registry bootstrap has not been completed")
+        if (state != BootstrapState.COMPLETED) {
+            throw BootstrapNotCompletedException()
         }
 
         val index = snapshots.indexOfFirst {
@@ -94,34 +107,39 @@ internal class RegistryBootstrap {
         contribution.postHooks.forEach { it() }
     }
 
-    fun graph(): RegistryGraph {
-        return currentGraph
-            ?: error("Registry bootstrap has not been completed")
-    }
+    fun graph(): RegistryGraph =
+        currentGraph ?: throw BootstrapNotCompletedException()
 
     fun <K, V> getRegistry(
         key: RegistryKey<K, V>
-    ): Registry<K, V> {
-        return graph().getRegistry(key)
+    ): Registry<K, V> =
+        graph().getRegistry(key)
+
+    private fun checkNotCompleted() {
+        if (state == BootstrapState.COMPLETED) {
+            throw BootstrapAlreadyCompletedException()
+        }
+    }
+
+    private fun runPostHooks(contributions: List<Contribution>) {
+        contributions.forEach { contribution ->
+            contribution.postHooks.forEach { it() }
+        }
     }
 
     @Suppress("UNCHECKED_CAST")
     private fun evaluate(
         contribution: Contribution
     ): HolderSnapshot {
-
         val registries =
             LinkedHashMap<RegistryKey<*, *>, Map<*, *>>()
 
         for ((key, builder) in contribution.registries) {
-
             val typedKey = key as RegistryKey<Any?, Any?>
 
             val typedBuilder = builder as RegistryContributionBuilder<Any?, Any?>.() -> Unit
 
-            val registryBuilder =
-                RegistryContributionBuilder(typedKey)
-
+            val registryBuilder = RegistryContributionBuilder(typedKey)
             registryBuilder.typedBuilder()
 
             registries[key] = registryBuilder.entries.toMap()
@@ -134,7 +152,6 @@ internal class RegistryBootstrap {
     private fun createGraph(
         snapshots: List<HolderSnapshot>
     ): RegistryGraph {
-
         val keys = LinkedHashSet<RegistryKey<*, *>>()
 
         snapshots.forEach { snapshot ->
@@ -144,14 +161,12 @@ internal class RegistryBootstrap {
         val registries = LinkedHashMap<RegistryKey<*, *>, Registry<*, *>>()
 
         for (key in keys) {
-
             val typedKey = key as RegistryKey<Any?, Any?>
 
             val mutableRegistry = MutableRegistry(typedKey)
 
             for ((holder, registries1) in snapshots) {
-
-                val entries = registries1[key] as? Map<Any?, Any?>
+                val entries = registries1[key]
                     ?: continue
 
                 entries.forEach { (entryKey, value) ->

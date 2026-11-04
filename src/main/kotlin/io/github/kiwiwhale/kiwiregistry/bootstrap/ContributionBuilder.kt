@@ -15,10 +15,13 @@ class ContributionBuilder {
         builder: RegistryContributionBuilder<K, V>.() -> Unit
     ) {
         if (key in registries) {
-            throw InvalidContributionException("Registry already declared in this contribution: ${key.id}")
+            throw InvalidContributionException(
+                "Registry already declared in this contribution: ${key.id}"
+            )
         }
 
-        registries[key] = builder as RegistryContributionBuilder<*, *>.() -> Unit
+        registries[key] =
+            builder as RegistryContributionBuilder<*, *>.() -> Unit
     }
 
     fun pre(block: () -> Unit) {
@@ -29,12 +32,11 @@ class ContributionBuilder {
         postHooks += block
     }
 
-    internal fun build(holder: RegistryHolder): Contribution {
-        return Contribution(
+    internal fun build(holder: RegistryHolder): Contribution =
+        Contribution(
             holder = holder,
             registries = registries.toMap(),
             preHooks = preHooks.toList(),
             postHooks = postHooks.toList()
         )
-    }
 }

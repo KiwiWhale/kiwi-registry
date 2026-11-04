@@ -1,5 +1,7 @@
 package io.github.kiwiwhale.kiwiregistry.core
 
+import io.github.kiwiwhale.kiwiregistry.exception.RegistryNotFoundException
+
 class RegistryGraph internal constructor(
     registries: Map<RegistryKey<*, *>, Registry<*, *>>
 ) {
@@ -11,7 +13,7 @@ class RegistryGraph internal constructor(
         key: RegistryKey<K, V>
     ): Registry<K, V> {
         return registries[key] as? Registry<K, V>
-            ?: error("Registry not found: ${key.id}")
+            ?: throw RegistryNotFoundException(key.id.toString())
     }
 
     internal fun rebuild(

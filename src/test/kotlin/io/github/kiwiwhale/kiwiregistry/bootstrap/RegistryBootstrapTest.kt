@@ -4,6 +4,7 @@ import io.github.kiwiwhale.kiwiregistry.core.RegistryId
 import io.github.kiwiwhale.kiwiregistry.core.RegistryKey
 import io.github.kiwiwhale.kiwiregistry.exception.BootstrapAlreadyCompletedException
 import io.github.kiwiwhale.kiwiregistry.exception.DuplicateContributionException
+import io.github.kiwiwhale.kiwiregistry.exception.InvalidContributionException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -157,7 +158,7 @@ class RegistryBootstrapTest {
 
         bootstrap.build()
 
-        assertFailsWith<IllegalArgumentException> {
+        assertFailsWith<InvalidContributionException> {
             bootstrap.rebuildRegistries(TestHolder())
         }
     }

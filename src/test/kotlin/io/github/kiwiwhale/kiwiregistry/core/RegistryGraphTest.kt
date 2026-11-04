@@ -1,5 +1,6 @@
 package io.github.kiwiwhale.kiwiregistry.core
 
+import io.github.kiwiwhale.kiwiregistry.exception.RegistryNotFoundException
 import io.github.kiwiwhale.kiwiregistry.registry.MutableRegistry
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -28,7 +29,7 @@ class RegistryGraphTest {
     fun `존재하지 않는 레지스트리 조회 테스트`() {
         val graph = RegistryGraph(emptyMap())
 
-        assertFailsWith<IllegalStateException> {
+        assertFailsWith<RegistryNotFoundException> {
             graph.getRegistry(key)
         }
     }
