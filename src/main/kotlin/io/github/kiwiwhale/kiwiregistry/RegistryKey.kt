@@ -1,14 +1,17 @@
 package io.github.kiwiwhale.kiwiregistry
 
 /**
- * Identifies a typed registry entry.
+ * Typed identifier for a registry entry.
  *
- * @param T Type of the registered value.
+ * Implementations must be immutable.
+ *
+ * Equality and hashCode should consistently represent the ID.
+ *
+ * In particular, keys with different IDs must not compare equal.
+ *
+ * @param T Registered value type.
  */
-interface RegistryKey<out T : Any> {
+interface RegistryKey<T : Any> {
 
-    /**
-     * Unique identifier of this entry.
-     */
     val id: RegistryId
 }

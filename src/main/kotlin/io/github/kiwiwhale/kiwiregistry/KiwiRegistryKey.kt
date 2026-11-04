@@ -1,10 +1,7 @@
 package io.github.kiwiwhale.kiwiregistry
 
 /**
- * Default implementation of [RegistryKey].
- *
- * @param T Registered value type.
- * @property id Unique registry identifier.
+ * Default immutable implementation of [RegistryKey].
  */
 data class KiwiRegistryKey<T : Any>(
     override val id: RegistryId
@@ -13,9 +10,15 @@ data class KiwiRegistryKey<T : Any>(
     companion object {
 
         /**
-         * Creates a key from a namespace and entry name.
+         * Creates a registry key.
          */
-        fun <T : Any> of(namespace: String, key: String): KiwiRegistryKey<T> =
-            KiwiRegistryKey(RegistryId(namespace, key))
+        @JvmStatic
+        fun <T : Any> of(
+            namespace: String,
+            key: String
+        ): KiwiRegistryKey<T> =
+            KiwiRegistryKey(
+                RegistryId(namespace, key)
+            )
     }
 }

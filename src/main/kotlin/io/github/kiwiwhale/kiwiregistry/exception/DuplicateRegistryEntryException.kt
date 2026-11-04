@@ -1,5 +1,12 @@
 package io.github.kiwiwhale.kiwiregistry.exception
 
+/**
+ * Thrown when attempting to register an existing registry entry.
+ */
 class DuplicateRegistryEntryException(
-    id: String
-) : RegistryException("Registry entry '$id' is already registered.")
+    val duplicateIds: List<String>
+) : IllegalStateException(
+    "Duplicate registry entries: ${duplicateIds.joinToString()}."
+) {
+    constructor(id: String) : this(listOf(id))
+}

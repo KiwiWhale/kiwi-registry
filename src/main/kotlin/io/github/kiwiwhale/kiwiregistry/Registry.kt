@@ -1,75 +1,101 @@
 package io.github.kiwiwhale.kiwiregistry
 
 /**
- * Contract for managing registry entries.
+ * Contract for a namespace-scoped registry.
  *
- * @param T Base registered value type.
+ * @param T Registered value type.
  */
 interface Registry<T : Any> {
 
-    /** Number of registered entries. */
+    val namespace: String
+
     val size: Int
 
-    /** Registers an entry using a typed key. */
-    fun <V : T> register(key: RegistryKey<V>, value: V)
+    fun register(name: String, value: T)
 
-    /** Registers an entry using its identifier. */
     fun register(id: RegistryId, value: T)
 
-    /** Atomically registers multiple entries. */
-    fun registerAll(additions: Map<RegistryId, T>)
+    fun register(key: RegistryKey<T>, value: T)
 
-    /** Registers an entry only if absent. */
-    fun <V : T> registerIfAbsent(
-        key: RegistryKey<V>,
-        value: V
-    ): Boolean
+    /**
+     * Atomically registers multiple entries.
+     *
+     * If any entry conflicts with an existing ID,
+     * no entries from the batch are registered.
+     */
+    fun registerAll(
+        additions: Map<out RegistryKey<T>, T>
+    )
 
-    /** Registers an entry only if its ID is absent. */
+    /**
+     * Registers multiple entries using string keys.
+     */
+    fun registerAllByName(
+        additions: Map<String, T>
+    )
+
+    fun registerIfAbsent(name: String, value: T): Boolean
+
     fun registerIfAbsent(id: RegistryId, value: T): Boolean
 
-    /** Retrieves an entry using a typed key. */
-    operator fun <V : T> get(key: RegistryKey<V>): V
+    fun registerIfAbsent(
+        key: RegistryKey<T>,
+        value: T
+    ): Boolean
 
-    /** Retrieves an entry using its identifier. */
+    operator fun get(name: String): T
+
     operator fun get(id: RegistryId): T
 
-    /** Retrieves an entry or returns null. */
-    fun <V : T> getOrNull(key: RegistryKey<V>): V?
+    operator fun get(key: RegistryKey<T>): T
 
-    /** Retrieves an entry or returns null. */
+    fun getOrNull(name: String): T?
+
     fun getOrNull(id: RegistryId): T?
 
-    /** Registers or replaces an entry. */
-    operator fun <V : T> set(key: RegistryKey<V>, value: V)
+    fun getOrNull(key: RegistryKey<T>): T?
 
-    /** Registers or replaces an entry by ID. */
+    operator fun set(name: String, value: T)
+
     operator fun set(id: RegistryId, value: T)
 
-    /** Checks whether an entry exists. */
-    operator fun contains(key: RegistryKey<*>): Boolean
+    operator fun set(key: RegistryKey<T>, value: T)
 
-    /** Checks whether an entry exists. */
+    operator fun contains(name: String): Boolean
+
     operator fun contains(id: RegistryId): Boolean
 
-    /** Removes an entry. */
-    fun unregister(key: RegistryKey<*>): Boolean
+    operator fun contains(key: RegistryKey<T>): Boolean
 
-    /** Removes an entry by ID. */
-    fun unregister(id: RegistryId): Boolean
+    fun replace(name: String, value: T): Boolean
 
-    /** Replaces an existing entry. */
     fun replace(id: RegistryId, value: T): Boolean
 
-    /** Removes all entries. */
+    fun replace(key: RegistryKey<T>, value: T): Boolean
+
+    fun unregister(name: String): Boolean
+
+    fun unregister(id: RegistryId): Boolean
+
+    fun unregister(key: RegistryKey<T>): Boolean
+
     fun clear()
 
-    /** Checks whether the registry is empty. */
     fun isEmpty(): Boolean
 
-    /** Returns all registered identifiers. */
+    fun keys(): Set<RegistryKey<T>>
+
     fun ids(): Set<RegistryId>
 
-    /** Returns an immutable snapshot. */
-    fun snapshot(): Map<RegistryId, T>
+    fun names(): Set<String>
+
+    /**
+     * Returns an immutable snapshot indexed by typed keys.
+     */
+    fun snapshot(): Map<RegistryKey<T>, T>
+
+    /**
+     * Returns an immutable snapshot indexed by registry IDs.
+     */
+    fun snapshotById(): Map<RegistryId, T>
 }

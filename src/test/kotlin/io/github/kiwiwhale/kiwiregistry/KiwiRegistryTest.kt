@@ -15,34 +15,41 @@ import kotlin.test.assertTrue
 
 class KiwiRegistryTest {
 
-    data class TestKey(
-        override val id: RegistryId
-    ) : RegistryKey<TestValue>
-
     data class TestValue(
         val value: String
     )
 
     private fun createRegistry() =
-        KiwiRegistry<TestValue, TestKey>(
-            keyFactory = ::TestKey
-        )
+        KiwiRegistry<TestValue>("test")
 
     private fun key(name: String) =
-        TestKey(RegistryId("test", name))
+        TestKey(name)
 
     private fun id(name: String) =
         RegistryId("test", name)
 
+    class TestKey(
+        val name: String
+    ) : RegistryKey<TestValue> {
+
+        override val id =
+            RegistryId("test", name)
+
+        override fun equals(other: Any?): Boolean =
+            other is TestKey && id == other.id
+
+        override fun hashCode(): Int =
+            id.hashCode()
+    }
+
     @Test
-    fun `Key로 등록하고 조회할 수 있다`() {
+    fun `String으로 등록하고 조회할 수 있다`() {
         val registry = createRegistry()
-        val key = key("user")
         val value = TestValue("hello")
 
-        registry.register(key, value)
+        registry.register("user", value)
 
-        assertEquals(value, registry.get(key))
+        assertEquals(value, registry["user"])
     }
 
     @Test
@@ -52,42 +59,70 @@ class KiwiRegistryTest {
 
         registry.register(id("user"), value)
 
-        assertEquals(value, registry.get(id("user")))
+        assertEquals(value, registry[id("user")])
     }
 
     @Test
-    fun `Key로 등록한 항목을 RegistryId로 조회할 수 있다`() {
+    fun `Key로 등록하고 조회할 수 있다`() {
         val registry = createRegistry()
         val value = TestValue("hello")
 
         registry.register(key("user"), value)
 
-        assertEquals(value, registry.get(id("user")))
+        assertEquals(value, registry[key("user")])
     }
 
     @Test
-    fun `RegistryId로 등록한 항목을 Key로 조회할 수 있다`() {
+    fun `서로 다른 접근 방식으로 동일한 항목을 조회할 수 있다`() {
         val registry = createRegistry()
         val value = TestValue("hello")
 
-        registry.register(id("user"), value)
+        registry.register(key("user"), value)
 
-        assertEquals(value, registry.get(key("user")))
+        assertEquals(value, registry["user"])
+        assertEquals(value, registry[id("user")])
+        assertEquals(value, registry[key("user")])
+    }
+
+    @Test
+    fun `다른 namespace의 ID를 거부한다`() {
+        val registry = createRegistry()
+
+        assertFailsWith<IllegalArgumentException> {
+            registry.register(
+                RegistryId("other", "user"),
+                TestValue("hello")
+            )
+        }
+    }
+
+    @Test
+    fun `다른 namespace의 Key를 거부한다`() {
+        val registry = createRegistry()
+
+        val otherKey = object : RegistryKey<TestValue> {
+            override val id =
+                RegistryId("other", "user")
+        }
+
+        assertFailsWith<IllegalArgumentException> {
+            registry.register(otherKey, TestValue("hello"))
+        }
     }
 
     @Test
     fun `동일한 ID의 중복 등록을 거부한다`() {
         val registry = createRegistry()
 
-        registry.register(key("user"), TestValue("first"))
+        registry.register("user", TestValue("first"))
 
         assertFailsWith<DuplicateRegistryEntryException> {
-            registry.register(key("user"), TestValue("second"))
+            registry.register("user", TestValue("second"))
         }
 
         assertEquals(
             TestValue("first"),
-            registry.get(id("user"))
+            registry["user"]
         )
     }
 
@@ -96,7 +131,7 @@ class KiwiRegistryTest {
         val registry = createRegistry()
 
         assertFailsWith<RegistryEntryNotFoundException> {
-            registry.get(id("missing"))
+            registry["missing"]
         }
     }
 
@@ -104,28 +139,29 @@ class KiwiRegistryTest {
     fun `존재하지 않는 항목 조회 시 null을 반환한다`() {
         val registry = createRegistry()
 
-        assertNull(registry.getOrNull(id("missing")))
+        assertNull(registry.getOrNull("missing"))
     }
 
     @Test
     fun `항목의 존재 여부를 확인할 수 있다`() {
         val registry = createRegistry()
 
-        registry.register(key("user"), TestValue("hello"))
+        registry.register("user", TestValue("hello"))
 
-        assertTrue(registry.contains(key("user")))
-        assertTrue(registry.contains(id("user")))
-        assertFalse(registry.contains(id("missing")))
+        assertTrue("user" in registry)
+        assertTrue(id("user") in registry)
+        assertTrue(key("user") in registry)
+        assertFalse("missing" in registry)
     }
 
     @Test
     fun `항목을 등록 해제할 수 있다`() {
         val registry = createRegistry()
 
-        registry.register(key("user"), TestValue("hello"))
+        registry.register("user", TestValue("hello"))
 
-        assertTrue(registry.unregister(key("user")))
-        assertFalse(registry.contains(id("user")))
+        assertTrue(registry.unregister("user"))
+        assertFalse("user" in registry)
         assertEquals(0, registry.size)
     }
 
@@ -133,49 +169,45 @@ class KiwiRegistryTest {
     fun `존재하지 않는 항목의 등록 해제는 false를 반환한다`() {
         val registry = createRegistry()
 
-        assertFalse(registry.unregister(id("missing")))
+        assertFalse(registry.unregister("missing"))
     }
 
     @Test
     fun `여러 항목을 일괄 등록할 수 있다`() {
         val registry = createRegistry()
 
-        registry.registerAll(
-            linkedMapOf(
-                key("user") to TestValue("user"),
-                key("order") to TestValue("order"),
-                key("payment") to TestValue("payment")
+        registry.registerAllByName(
+            mapOf(
+                "user" to TestValue("user"),
+                "order" to TestValue("order"),
+                "payment" to TestValue("payment")
             )
         )
 
         assertEquals(3, registry.size)
-        assertTrue(registry.contains(id("user")))
-        assertTrue(registry.contains(id("order")))
-        assertTrue(registry.contains(id("payment")))
+        assertTrue("user" in registry)
+        assertTrue("order" in registry)
+        assertTrue("payment" in registry)
     }
 
     @Test
     fun `일괄 등록 실패 시 기존 항목을 유지한다`() {
         val registry = createRegistry()
 
-        registry.register(key("user"), TestValue("original"))
+        registry.register("user", TestValue("original"))
 
         assertFailsWith<DuplicateRegistryEntryException> {
-            registry.registerAll(
-                linkedMapOf(
-                    key("order") to TestValue("order"),
-                    key("user") to TestValue("duplicate")
+            registry.registerAllByName(
+                mapOf(
+                    "order" to TestValue("order"),
+                    "user" to TestValue("duplicate")
                 )
             )
         }
 
         assertEquals(1, registry.size)
-        assertEquals(
-            TestValue("original"),
-            registry.get(id("user"))
-        )
-
-        assertFalse(registry.contains(id("order")))
+        assertEquals(TestValue("original"), registry["user"])
+        assertFalse("order" in registry)
     }
 
     @Test
@@ -185,44 +217,23 @@ class KiwiRegistryTest {
         val first = TestValue("first")
         val second = TestValue("second")
 
-        assertTrue(
-            registry.registerIfAbsent(key("user"), first)
-        )
+        assertTrue(registry.registerIfAbsent("user", first))
+        assertFalse(registry.registerIfAbsent("user", second))
 
-        assertFalse(
-            registry.registerIfAbsent(key("user"), second)
-        )
-
-        assertEquals(first, registry.get(id("user")))
-    }
-
-    @Test
-    fun `RegistryId로 중복 없이 등록할 수 있다`() {
-        val registry = createRegistry()
-
-        assertTrue(
-            registry.registerIfAbsent(id("user"), TestValue("first"))
-        )
-
-        assertFalse(
-            registry.registerIfAbsent(id("user"), TestValue("second"))
-        )
+        assertEquals(first, registry["user"])
     }
 
     @Test
     fun `기존 항목을 교체할 수 있다`() {
         val registry = createRegistry()
 
-        registry.register(key("user"), TestValue("first"))
+        registry.register("user", TestValue("first"))
 
         assertTrue(
-            registry.replace(id("user"), TestValue("second"))
+            registry.replace("user", TestValue("second"))
         )
 
-        assertEquals(
-            TestValue("second"),
-            registry.get(id("user"))
-        )
+        assertEquals(TestValue("second"), registry["user"])
     }
 
     @Test
@@ -230,7 +241,7 @@ class KiwiRegistryTest {
         val registry = createRegistry()
 
         assertFalse(
-            registry.replace(id("missing"), TestValue("value"))
+            registry.replace("missing", TestValue("value"))
         )
     }
 
@@ -238,8 +249,8 @@ class KiwiRegistryTest {
     fun `모든 항목을 제거할 수 있다`() {
         val registry = createRegistry()
 
-        registry.register(key("user"), TestValue("user"))
-        registry.register(key("order"), TestValue("order"))
+        registry.register("user", TestValue("user"))
+        registry.register("order", TestValue("order"))
 
         registry.clear()
 
@@ -261,8 +272,8 @@ class KiwiRegistryTest {
     fun `등록된 ID 목록을 조회할 수 있다`() {
         val registry = createRegistry()
 
-        registry.register(key("user"), TestValue("user"))
-        registry.register(key("order"), TestValue("order"))
+        registry.register("user", TestValue("user"))
+        registry.register("order", TestValue("order"))
 
         assertEquals(
             setOf(id("user"), id("order")),
@@ -287,12 +298,12 @@ class KiwiRegistryTest {
     fun `Snapshot은 이후 Registry 변경에 영향을 받지 않는다`() {
         val registry = createRegistry()
 
-        registry.register(key("user"), TestValue("user"))
+        registry.register("user", TestValue("user"))
 
         val snapshot = registry.snapshot()
 
-        registry.register(key("order"), TestValue("order"))
-        registry.unregister(id("user"))
+        registry.register("order", TestValue("order"))
+        registry.unregister("user")
 
         assertEquals(1, snapshot.size)
         assertTrue(snapshot.containsValue(TestValue("user")))
@@ -303,67 +314,16 @@ class KiwiRegistryTest {
     fun `Snapshot을 직접 수정할 수 없다`() {
         val registry = createRegistry()
 
-        registry.register(key("user"), TestValue("user"))
+        registry.register("user", TestValue("user"))
 
         val snapshot = registry.snapshot()
 
         @Suppress("UNCHECKED_CAST")
-        val mutable = snapshot as MutableMap<TestKey, TestValue>
+        val mutable =
+            snapshot as MutableMap<RegistryKey<TestValue>, TestValue>
 
         assertFailsWith<UnsupportedOperationException> {
             mutable[key("order")] = TestValue("order")
-        }
-    }
-
-    @Test
-    fun `Key 목록을 직접 수정할 수 없다`() {
-        val registry = createRegistry()
-
-        registry.register(key("user"), TestValue("user"))
-
-        @Suppress("UNCHECKED_CAST")
-        val mutable = registry.keys() as MutableSet<TestKey>
-
-        assertFailsWith<UnsupportedOperationException> {
-            mutable.add(key("order"))
-        }
-    }
-
-    @Test
-    fun `서로 다른 namespace는 별개의 항목으로 취급한다`() {
-        val registry = createRegistry()
-
-        registry.register(
-            TestKey(RegistryId("kiwi-flow", "user")),
-            TestValue("flow")
-        )
-
-        registry.register(
-            TestKey(RegistryId("kiwi-state", "user")),
-            TestValue("state")
-        )
-
-        assertEquals(2, registry.size)
-
-        assertEquals(
-            TestValue("flow"),
-            registry.get(RegistryId("kiwi-flow", "user"))
-        )
-
-        assertEquals(
-            TestValue("state"),
-            registry.get(RegistryId("kiwi-state", "user"))
-        )
-    }
-
-    @Test
-    fun `Key Factory가 다른 ID를 반환하면 예외가 발생한다`() {
-        val registry = KiwiRegistry<TestValue, TestKey> {
-            key("different")
-        }
-
-        assertFailsWith<IllegalArgumentException> {
-            registry.register(id("user"), TestValue("user"))
         }
     }
 
@@ -383,7 +343,7 @@ class KiwiRegistryTest {
 
                         if (
                             registry.registerIfAbsent(
-                                id("user"),
+                                "user",
                                 TestValue("value-$index")
                             )
                         ) {
@@ -394,7 +354,6 @@ class KiwiRegistryTest {
             }
 
             start.countDown()
-
             futures.forEach { it.get() }
 
             assertEquals(1, successCount.get())
@@ -418,7 +377,7 @@ class KiwiRegistryTest {
                         start.await()
 
                         registry.register(
-                            id("entry-$index"),
+                            "entry-$index",
                             TestValue("value-$index")
                         )
                     }
@@ -426,7 +385,6 @@ class KiwiRegistryTest {
             }
 
             start.countDown()
-
             futures.forEach { it.get() }
 
             assertEquals(100, registry.size)

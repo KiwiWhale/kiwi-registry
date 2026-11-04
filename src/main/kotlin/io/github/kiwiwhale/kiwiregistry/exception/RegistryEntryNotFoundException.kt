@@ -1,5 +1,8 @@
 package io.github.kiwiwhale.kiwiregistry.exception
 
+/**
+ * Thrown when a requested registry entry does not exist.
+ */
 class RegistryEntryNotFoundException(
-    id: String
-) : RegistryException("Registry entry '$id' was not found.")
+    val registryId: String
+) : NoSuchElementException("Registry entry not found: '$registryId'.")

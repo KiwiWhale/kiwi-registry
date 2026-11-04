@@ -7,73 +7,51 @@ import kotlin.test.assertFailsWith
 class RegistryIdTest {
 
     @Test
-    fun `namespace와 key로 RegistryId를 생성할 수 있다`() {
-        val id = RegistryId("kiwi-flow", "workflow")
+    fun `유효한 ID를 생성한다`() {
+        val id = RegistryId("minecraft", "stone")
 
-        assertEquals("kiwi-flow", id.namespace)
-        assertEquals("workflow", id.key)
-        assertEquals("kiwi-flow:workflow", id.toString())
+        assertEquals("minecraft", id.namespace)
+        assertEquals("stone", id.key)
+        assertEquals("minecraft:stone", id.toString())
     }
 
     @Test
-    fun `문자열에서 RegistryId를 파싱할 수 있다`() {
-        val id = RegistryId.parse("kiwi-flow:workflow")
-
+    fun `문자열에서 ID를 파싱한다`() {
         assertEquals(
-            RegistryId("kiwi-flow", "workflow"),
-            id
+            RegistryId("minecraft", "stone"),
+            RegistryId.parse("minecraft:stone")
         )
     }
 
     @Test
-    fun `동일한 RegistryId는 동등하다`() {
-        val first = RegistryId("kiwi-flow", "workflow")
-        val second = RegistryId("kiwi-flow", "workflow")
-
-        assertEquals(first, second)
-    }
-
-    @Test
-    fun `빈 namespace를 허용하지 않는다`() {
-        assertFailsWith<IllegalArgumentException> {
-            RegistryId("", "workflow")
-        }
-    }
-
-    @Test
-    fun `빈 key를 허용하지 않는다`() {
-        assertFailsWith<IllegalArgumentException> {
-            RegistryId("kiwi-flow", "")
-        }
-    }
-
-    @Test
-    fun `namespace에 구분자를 허용하지 않는다`() {
-        assertFailsWith<IllegalArgumentException> {
-            RegistryId("kiwi:flow", "workflow")
-        }
-    }
-
-    @Test
-    fun `key에 구분자를 허용하지 않는다`() {
-        assertFailsWith<IllegalArgumentException> {
-            RegistryId("kiwi-flow", "user:workflow")
-        }
-    }
-
-    @Test
-    fun `잘못된 RegistryId 문자열을 거부한다`() {
-        val invalidIds = listOf(
-            "workflow",
-            ":workflow",
-            "kiwi-flow:",
-            "kiwi:flow:workflow",
-            ""
-        )
-
-        invalidIds.forEach { value ->
+    fun `잘못된 ID를 거부한다`() {
+        listOf(
+            "",
+            ":stone",
+            "minecraft:",
+            "minecraft:stone:block",
+            "minecraft"
+        ).forEach { value ->
             assertFailsWith<IllegalArgumentException> {
                 RegistryId.parse(value)
+            }
+        }
+    }
+
+    @Test
+    fun `잘못된 namespace를 거부한다`() {
+        listOf("", " ", "minecraft:other").forEach {
+            assertFailsWith<IllegalArgumentException> {
+                RegistryId(it, "stone")
+            }
+        }
+    }
+
+    @Test
+    fun `잘못된 key를 거부한다`() {
+        listOf("", " ", "stone:block").forEach {
+            assertFailsWith<IllegalArgumentException> {
+                RegistryId("minecraft", it)
             }
         }
     }

@@ -3,12 +3,9 @@ package io.github.kiwiwhale.kiwiregistry
 /**
  * Unique identifier for a registry entry.
  *
- * Consists of a namespace and a key.
+ * Format: namespace:key
  *
- * Example: `kiwi-flow:workflow`
- *
- * @property namespace Identifier namespace.
- * @property key Entry key.
+ * Both namespace and key must be non-blank and must not contain ':'.
  */
 data class RegistryId(
     val namespace: String,
@@ -16,24 +13,34 @@ data class RegistryId(
 ) {
 
     init {
-        require(namespace.isNotBlank() && ':' !in namespace) {
-            "Invalid registry namespace: '$namespace'."
+        require(namespace.isNotBlank()) {
+            "Registry namespace must not be blank."
         }
 
-        require(key.isNotBlank() && ':' !in key) {
-            "Invalid registry key: '$key'."
+        require(':' !in namespace) {
+            "Registry namespace must not contain ':'."
+        }
+
+        require(key.isNotBlank()) {
+            "Registry key must not be blank."
+        }
+
+        require(':' !in key) {
+            "Registry key must not contain ':'."
         }
     }
 
-    override fun toString(): String = "$namespace:$key"
+    override fun toString(): String =
+        "$namespace:$key"
 
     companion object {
 
         /**
-         * Parses an identifier in `namespace:key` format.
+         * Parses a registry ID.
          *
          * @throws IllegalArgumentException If the format is invalid.
          */
+        @JvmStatic
         fun parse(value: String): RegistryId {
             val separator = value.indexOf(':')
 
@@ -46,8 +53,8 @@ data class RegistryId(
             }
 
             return RegistryId(
-                value.substring(0, separator),
-                value.substring(separator + 1)
+                namespace = value.substring(0, separator),
+                key = value.substring(separator + 1)
             )
         }
     }
