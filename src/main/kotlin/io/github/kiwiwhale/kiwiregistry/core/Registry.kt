@@ -28,6 +28,9 @@ interface Registry<K, V> {
     operator fun get(key: K): V? =
         data[key]
 
+    fun getOrNull(key: K): V? =
+        get(key)
+
     operator fun contains(key: K): Boolean =
         data.containsKey(key)
 
