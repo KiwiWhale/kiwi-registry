@@ -1,6 +1,5 @@
 package io.github.kiwiwhale.kiwiregistry.bootstrap
 
-import io.github.kiwiwhale.kiwiregistry.exception.BootstrapAlreadyInjectedException
 import io.github.kiwiwhale.kiwiregistry.exception.BootstrapNotInjectedException
 import java.util.IdentityHashMap
 
@@ -13,10 +12,6 @@ internal object BootstrapHolderState {
         holder: BootstrapHolder,
         bootstrap: RegistryBootstrap
     ) {
-        if (bootstraps.containsKey(holder)) {
-            throw BootstrapAlreadyInjectedException()
-        }
-
         bootstraps[holder] = bootstrap
     }
 
