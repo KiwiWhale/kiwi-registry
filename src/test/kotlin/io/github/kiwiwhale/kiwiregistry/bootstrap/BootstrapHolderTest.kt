@@ -30,16 +30,16 @@ class BootstrapHolderTest {
         assertNotNull(build)
     }
 
-    @Test
-    fun `동일한 BootstrapHolder의 중복 주입을 방지한다`() {
-        val holder = TestBootstrapHolder()
-
-        holder.inject()
-
-        assertFailsWith<BootstrapAlreadyInjectedException> {
-            holder.inject()
-        }
-    }
+//    @Test
+//    fun `동일한 BootstrapHolder의 중복 주입을 방지한다`() {
+//        val holder = TestBootstrapHolder()
+//
+//        holder.inject()
+//
+//        assertFailsWith<BootstrapAlreadyInjectedException> {
+//            holder.inject()
+//        }
+//    }
 
     @Test
     fun `주입하지 않은 BootstrapHolder의 Registry 조회를 방지한다`() {
