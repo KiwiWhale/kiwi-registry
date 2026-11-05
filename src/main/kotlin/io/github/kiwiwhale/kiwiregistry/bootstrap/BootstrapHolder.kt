@@ -23,6 +23,6 @@ interface BootstrapHolder {
     }
 
     fun dispose() {
-        BootstrapHolderState.remove(this)
+        BootstrapHolderState.remove(this)?.dispose()
     }
 }

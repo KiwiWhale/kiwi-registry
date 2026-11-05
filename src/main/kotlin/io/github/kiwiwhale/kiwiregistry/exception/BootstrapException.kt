@@ -41,7 +41,14 @@ class BootstrapInProgressException :
         "Bootstrap is currently in progress."
     )
 
-class BootstrapNotCreatedException :
+class BootstrapDisposedException :
     BootstrapException(
-        "Bootstrap is not in the created state."
+        "Bootstrap has already been disposed."
     )
+
+class PostHookExecutionException(
+    cause: Exception
+) : BootstrapException(
+    "One or more post hooks failed.",
+    cause
+)

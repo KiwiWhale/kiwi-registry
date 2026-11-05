@@ -5,8 +5,11 @@ interface RegistryKey<K, V> {
     val id: RegistryId
 
     companion object {
-        fun <K, V> simple(id: RegistryId): SimpleRegistryKey<K, V> =
+        fun <K, V> simple(id: RegistryId): RegistryKey<K, V> =
             SimpleRegistryKey(id)
+
+        fun <K, V> simple(id: String): RegistryKey<K, V> =
+            SimpleRegistryKey(RegistryId.parse(id))
     }
 }
 

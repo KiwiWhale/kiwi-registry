@@ -10,7 +10,7 @@ class RegistryContributionBuilder<K, V> internal constructor(
     internal val entries = LinkedHashMap<K, V>()
 
     fun add(key: K, value: V) {
-        if (key in entries) {
+        if (entries.containsKey(key)) {
             throw DuplicateRegistryEntryException(registryKey.id.toString(), key)
         }
 

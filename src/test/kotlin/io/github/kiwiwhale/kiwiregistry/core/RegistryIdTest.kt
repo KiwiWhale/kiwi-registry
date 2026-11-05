@@ -47,4 +47,45 @@ class RegistryIdTest {
             RegistryId("game", "")
         }
     }
+
+    @Test
+    fun `RegistryId를 문자열로 변환한다`() {
+        val id = RegistryId("kiwi", "items")
+
+        assertEquals("kiwi:items", id.toString())
+    }
+
+    @Test
+    fun `문자열에서 RegistryId를 파싱한다`() {
+        val id = RegistryId.parse("kiwi:items")
+
+        assertEquals("kiwi", id.namespace)
+        assertEquals("items", id.key)
+    }
+
+    @Test
+    fun `잘못된 RegistryId 형식을 거부한다`() {
+        assertFailsWith<IllegalArgumentException> {
+            RegistryId.parse("kiwi")
+        }
+
+        assertFailsWith<IllegalArgumentException> {
+            RegistryId.parse(":items")
+        }
+
+        assertFailsWith<IllegalArgumentException> {
+            RegistryId.parse("kiwi:")
+        }
+    }
+
+    @Test
+    fun `RegistryId의 namespace와 key가 비어 있으면 안 된다`() {
+        assertFailsWith<IllegalArgumentException> {
+            RegistryId("", "items")
+        }
+
+        assertFailsWith<IllegalArgumentException> {
+            RegistryId("kiwi", " ")
+        }
+    }
 }

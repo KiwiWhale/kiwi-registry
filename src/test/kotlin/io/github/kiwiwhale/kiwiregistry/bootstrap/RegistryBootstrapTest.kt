@@ -2,41 +2,25 @@ package io.github.kiwiwhale.kiwiregistry.bootstrap
 
 import io.github.kiwiwhale.kiwiregistry.core.RegistryId
 import io.github.kiwiwhale.kiwiregistry.core.RegistryKey
-import io.github.kiwiwhale.kiwiregistry.exception.BootstrapAlreadyCompletedException
-import io.github.kiwiwhale.kiwiregistry.exception.BootstrapInProgressException
-import io.github.kiwiwhale.kiwiregistry.exception.BootstrapNotCompletedException
-import io.github.kiwiwhale.kiwiregistry.exception.DuplicateContributionException
-import io.github.kiwiwhale.kiwiregistry.exception.InvalidContributionException
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class RegistryBootstrapTest {
 
-    private val registryKey =
-        RegistryKey.simple<String, String>(
-            RegistryId("test", "items")
-        )
+    private val key = RegistryBootstrapTestFixture.registryKey
+
+    private val contribution = RegistryBootstrapTestFixture::contribution
 
     private class TestHolder : RegistryHolder
 
-    private fun contribution(
-        holder: RegistryHolder,
-        builder: ContributionBuilder.() -> Unit
-    ): Contribution {
-        val contributionBuilder = ContributionBuilder()
-        contributionBuilder.builder()
-        return contributionBuilder.build(holder)
-    }
-
     @Test
-    fun `단일 Holder의 Registry 구축`() {
+    fun `단일 Holder의 Registry를 구축한다`() {
         val bootstrap = RegistryBootstrap()
-        val holder = TestHolder()
 
         bootstrap.submit(
-            contribution(holder) {
-                registry(registryKey) {
+            contribution(TestHolder()) {
+                registry(key) {
                     add("sword", "Sword")
                     add("shield", "Shield")
                 }
@@ -45,31 +29,29 @@ class RegistryBootstrapTest {
 
         bootstrap.build()
 
-        val registry = bootstrap.getRegistry(registryKey)
+        val registry = bootstrap.getRegistry(key)
 
         assertEquals(2, registry.size)
         assertEquals("Sword", registry["sword"])
         assertEquals("Shield", registry["shield"])
+        assertTrue(bootstrap.isInitialized)
     }
 
     @Test
     fun `여러 Holder의 Registry 데이터를 병합한다`() {
         val bootstrap = RegistryBootstrap()
 
-        val firstHolder = TestHolder()
-        val secondHolder = TestHolder()
-
         bootstrap.submit(
-            contribution(firstHolder) {
-                registry(registryKey) {
+            contribution(TestHolder()) {
+                registry(key) {
                     add("sword", "Sword")
                 }
             }
         )
 
         bootstrap.submit(
-            contribution(secondHolder) {
-                registry(registryKey) {
+            contribution(TestHolder()) {
+                registry(key) {
                     add("shield", "Shield")
                 }
             }
@@ -77,7 +59,7 @@ class RegistryBootstrapTest {
 
         bootstrap.build()
 
-        val registry = bootstrap.getRegistry(registryKey)
+        val registry = bootstrap.getRegistry(key)
 
         assertEquals(2, registry.size)
         assertEquals("Sword", registry["sword"])
@@ -85,57 +67,46 @@ class RegistryBootstrapTest {
     }
 
     @Test
-    fun `Holder의 Registry를 재구축한다`() {
+    fun `Registry가 없는 Contribution도 구축할 수 있다`() {
         val bootstrap = RegistryBootstrap()
-        val holder = TestHolder()
-
-        var itemName = "Sword"
 
         bootstrap.submit(
-            contribution(holder) {
-                registry(registryKey) {
-                    add("weapon", itemName)
-                }
-            }
+            contribution(TestHolder()) {}
         )
 
         bootstrap.build()
 
-        assertEquals(
-            "Sword",
-            bootstrap.getRegistry(registryKey)["weapon"]
-        )
-
-        itemName = "Diamond Sword"
-
-        bootstrap.rebuildRegistries(holder)
-
-        assertEquals(
-            "Diamond Sword",
-            bootstrap.getRegistry(registryKey)["weapon"]
-        )
+        assertTrue(bootstrap.isInitialized)
     }
 
     @Test
-    fun `재구축 이후 다른 Holder의 데이터가 유지된다`() {
+    fun `Contribution이 없는 Bootstrap도 구축할 수 있다`() {
         val bootstrap = RegistryBootstrap()
 
-        val firstHolder = TestHolder()
-        val secondHolder = TestHolder()
+        bootstrap.build()
 
-        var itemName = "Sword"
+        assertTrue(bootstrap.isInitialized)
+    }
 
-        bootstrap.submit(
-            contribution(firstHolder) {
-                registry(registryKey) {
-                    add("weapon", itemName)
-                }
-            }
+    @Test
+    fun `서로 다른 RegistryKey를 독립적으로 구축한다`() {
+        val bootstrap = RegistryBootstrap()
+
+        val weapons = RegistryKey.simple<String, String>(
+            RegistryId("test", "weapons")
+        )
+
+        val armors = RegistryKey.simple<String, String>(
+            RegistryId("test", "armors")
         )
 
         bootstrap.submit(
-            contribution(secondHolder) {
-                registry(registryKey) {
+            contribution(TestHolder()) {
+                registry(weapons) {
+                    add("sword", "Sword")
+                }
+
+                registry(armors) {
                     add("shield", "Shield")
                 }
             }
@@ -143,427 +114,16 @@ class RegistryBootstrapTest {
 
         bootstrap.build()
 
-        itemName = "Diamond Sword"
-
-        bootstrap.rebuildRegistries(firstHolder)
-
-        val registry = bootstrap.getRegistry(registryKey)
-
-        assertEquals("Diamond Sword", registry["weapon"])
-        assertEquals("Shield", registry["shield"])
-        assertEquals(2, registry.size)
-    }
-
-    @Test
-    fun `존재하지 않는 Holder를 재구축하면 실패한다`() {
-        val bootstrap = RegistryBootstrap()
-
-        bootstrap.build()
-
-        assertFailsWith<InvalidContributionException> {
-            bootstrap.rebuildRegistries(TestHolder())
-        }
-    }
-
-    @Test
-    fun `이미 구축된 Bootstrap을 다시 구축할 수 없다`() {
-        val bootstrap = RegistryBootstrap()
-
-        bootstrap.build()
-
-        assertFailsWith<BootstrapAlreadyCompletedException> {
-            bootstrap.build()
-        }
-    }
-
-    @Test
-    fun `동일한 Holder를 중복 등록할 수 없다`() {
-        val bootstrap = RegistryBootstrap()
-        val holder = TestHolder()
-
-        bootstrap.submit(
-            contribution(holder) {}
-        )
-
-        assertFailsWith<DuplicateContributionException> {
-            bootstrap.submit(
-                contribution(holder) {}
-            )
-        }
-    }
-
-    @Test
-    fun `Pre Hook과 Post Hook이 실행된다`() {
-        val bootstrap = RegistryBootstrap()
-        val holder = TestHolder()
-
-        val executed = ArrayList<String>()
-
-        bootstrap.submit(
-            contribution(holder) {
-                pre {
-                    executed += "pre"
-                }
-
-                post {
-                    executed += "post"
-                }
-
-                registry(registryKey) {
-                    add("sword", "Sword")
-                }
-            }
-        )
-
-        bootstrap.build()
-
-        assertEquals(
-            listOf("pre", "post"),
-            executed
-        )
-    }
-
-    @Test
-    fun `재구축 시 대상 Holder의 Hook만 실행된다`() {
-        val bootstrap = RegistryBootstrap()
-
-        val firstHolder = TestHolder()
-        val secondHolder = TestHolder()
-
-        val executed = ArrayList<String>()
-
-        bootstrap.submit(
-            contribution(firstHolder) {
-                pre { executed += "first-pre" }
-                post { executed += "first-post" }
-
-                registry(registryKey) {
-                    add("sword", "Sword")
-                }
-            }
-        )
-
-        bootstrap.submit(
-            contribution(secondHolder) {
-                pre { executed += "second-pre" }
-                post { executed += "second-post" }
-
-                registry(registryKey) {
-                    add("shield", "Shield")
-                }
-            }
-        )
-
-        bootstrap.build()
-
-        executed.clear()
-
-        bootstrap.rebuildRegistries(firstHolder)
-
-        assertEquals(
-            listOf("first-pre", "first-post"),
-            executed
-        )
-    }
-
-    @Test
-    fun `서로 다른 Holder가 동일한 Key를 등록하면 실패한다`() {
-        val bootstrap = RegistryBootstrap()
-
-        bootstrap.submit(
-            contribution(TestHolder()) {
-                registry(registryKey) {
-                    add("sword", "Sword")
-                }
-            }
-        )
-
-        bootstrap.submit(
-            contribution(TestHolder()) {
-                registry(registryKey) {
-                    add("sword", "Another Sword")
-                }
-            }
-        )
-
-        assertFailsWith<Exception> {
-            bootstrap.build()
-        }
-    }
-
-    @Test
-    fun `재구축에 실패하면 기존 Registry를 유지한다`() {
-        val bootstrap = RegistryBootstrap()
-        val holder = TestHolder()
-
-        var shouldFail = false
-
-        bootstrap.submit(
-            contribution(holder) {
-                registry(registryKey) {
-                    add("sword", "Sword")
-
-                    if (shouldFail) {
-                        add("sword", "Duplicate")
-                    }
-                }
-            }
-        )
-
-        bootstrap.build()
-
-        val original = bootstrap.getRegistry(registryKey)
-
-        shouldFail = true
-
-        assertFailsWith<Exception> {
-            bootstrap.rebuildRegistries(holder)
-        }
-
-        val current = bootstrap.getRegistry(registryKey)
-
-        assertEquals("Sword", current["sword"])
-        assertEquals(original.data, current.data)
-    }
-
-    @Test
-    fun `특정 Holder만 재구축한다`() {
-        val bootstrap = RegistryBootstrap()
-
-        val firstHolder = TestHolder()
-        val secondHolder = TestHolder()
-
-        var firstValue = "First"
-        var secondBuildCount = 0
-
-        bootstrap.submit(
-            contribution(firstHolder) {
-                registry(registryKey) {
-                    add("first", firstValue)
-                }
-            }
-        )
-
-        bootstrap.submit(
-            contribution(secondHolder) {
-                registry(registryKey) {
-                    secondBuildCount++
-                    add("second", "Second")
-                }
-            }
-        )
-
-        bootstrap.build()
-
-        firstValue = "Updated"
-
-        bootstrap.rebuildRegistries(firstHolder)
-
-        val registry = bootstrap.getRegistry(registryKey)
-
-        assertEquals("Updated", registry["first"])
-        assertEquals("Second", registry["second"])
-        assertEquals(1, secondBuildCount)
-    }
-
-    @Test
-    fun `PreHook 실패 시 Bootstrap 상태가 복구된다`() {
-        val bootstrap = RegistryBootstrap()
-
-        val holder = TestHolder()
-        var shouldFail = true
-
-        bootstrap.submit(
-            contribution(holder) {
-                pre {
-                    if (shouldFail) {
-                        error("PreHook failed")
-                    }
-                }
-
-                registry(registryKey) {
-                    add("sword", "Sword")
-                }
-            }
-        )
-
-        assertFailsWith<IllegalStateException> {
-            bootstrap.build()
-        }
-
-        assertEquals(false, bootstrap.isInitialized)
-
-        shouldFail = false
-        bootstrap.build()
-
-        assertEquals(true, bootstrap.isInitialized)
-        assertEquals("Sword", bootstrap.getRegistry(registryKey)["sword"])
-    }
-
-    @Test
-    fun `PostHook 실패해도 Bootstrap은 완료 상태를 유지한다`() {
-        val bootstrap = RegistryBootstrap()
-
-        val holder = TestHolder()
-
-        bootstrap.submit(
-            contribution(holder) {
-                registry(registryKey) {
-                    add("sword", "Sword")
-                }
-
-                post {
-                    error("PostHook failed")
-                }
-            }
-        )
-
-        assertFailsWith<IllegalStateException> {
-            bootstrap.build()
-        }
-
-        assertEquals(true, bootstrap.isInitialized)
-
         assertEquals(
             "Sword",
-            bootstrap.getRegistry(registryKey)["sword"]
+            bootstrap.getRegistry(weapons)["sword"]
         )
-    }
-
-    @Test
-    fun `Bootstrap 진행 중 Contribution 등록을 방지한다`() {
-        val bootstrap = RegistryBootstrap()
-        val holder = TestHolder()
-
-        bootstrap.submit(
-            contribution(holder) {
-                pre {
-                    assertFailsWith<BootstrapInProgressException> {
-                        bootstrap.submit(
-                            contribution(TestHolder()) {}
-                        )
-                    }
-                }
-            }
-        )
-
-        bootstrap.build()
-
-        assertEquals(true, bootstrap.isInitialized)
-    }
-
-    @Test
-    fun `Bootstrap 진행 중 중복 빌드를 방지한다`() {
-        val bootstrap = RegistryBootstrap()
-
-        bootstrap.submit(
-            contribution(TestHolder()) {
-                pre {
-                    assertFailsWith<BootstrapInProgressException> {
-                        bootstrap.build()
-                    }
-                }
-            }
-        )
-
-        bootstrap.build()
-
-        assertEquals(true, bootstrap.isInitialized)
-    }
-
-    @Test
-    fun `빌드 완료 후 Contribution 등록을 방지한다`() {
-        val bootstrap = RegistryBootstrap()
-
-        bootstrap.build()
-
-        assertFailsWith<BootstrapAlreadyCompletedException> {
-            bootstrap.submit(
-                contribution(TestHolder()) {}
-            )
-        }
-    }
-
-    @Test
-    fun `재구축 PreHook 실패 시 기존 Registry를 유지한다`() {
-        val bootstrap = RegistryBootstrap()
-        val holder = TestHolder()
-
-        var shouldFail = false
-
-        bootstrap.submit(
-            contribution(holder) {
-                pre {
-                    if (shouldFail) {
-                        error("PreHook failed")
-                    }
-                }
-
-                registry(registryKey) {
-                    add("sword", "Sword")
-                }
-            }
-        )
-
-        bootstrap.build()
-
-        shouldFail = true
-
-        assertFailsWith<IllegalStateException> {
-            bootstrap.rebuildRegistries(holder)
-        }
 
         assertEquals(
-            "Sword",
-            bootstrap.getRegistry(registryKey)["sword"]
+            "Shield",
+            bootstrap.getRegistry(armors)["shield"]
         )
 
-        assertEquals(true, bootstrap.isInitialized)
-    }
-
-    @Test
-    fun `재구축 PostHook 실패 시 새로운 Registry를 유지한다`() {
-        val bootstrap = RegistryBootstrap()
-        val holder = TestHolder()
-
-        var itemName = "Sword"
-
-        bootstrap.submit(
-            contribution(holder) {
-                registry(registryKey) {
-                    add("weapon", itemName)
-                }
-
-                post {
-                    if (itemName == "Diamond Sword") {
-                        error("PostHook failed")
-                    }
-                }
-            }
-        )
-
-        bootstrap.build()
-
-        itemName = "Diamond Sword"
-
-        assertFailsWith<IllegalStateException> {
-            bootstrap.rebuildRegistries(holder)
-        }
-
-        assertEquals(
-            "Diamond Sword",
-            bootstrap.getRegistry(registryKey)["weapon"]
-        )
-
-        assertEquals(true, bootstrap.isInitialized)
-    }
-
-    @Test
-    fun `빌드 전 Registry 재구축을 방지한다`() {
-        val bootstrap = RegistryBootstrap()
-
-        assertFailsWith<BootstrapNotCompletedException> {
-            bootstrap.rebuildRegistries(TestHolder())
-        }
+        assertEquals(2, bootstrap.graph().size)
     }
 }

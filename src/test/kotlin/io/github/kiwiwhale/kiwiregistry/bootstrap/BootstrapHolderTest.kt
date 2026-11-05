@@ -3,6 +3,7 @@ package io.github.kiwiwhale.kiwiregistry.bootstrap
 import io.github.kiwiwhale.kiwiregistry.core.RegistryId
 import io.github.kiwiwhale.kiwiregistry.core.RegistryKey
 import io.github.kiwiwhale.kiwiregistry.exception.BootstrapAlreadyInjectedException
+import io.github.kiwiwhale.kiwiregistry.exception.BootstrapDisposedException
 import io.github.kiwiwhale.kiwiregistry.exception.BootstrapNotCompletedException
 import io.github.kiwiwhale.kiwiregistry.exception.BootstrapNotInjectedException
 import kotlin.test.Test
@@ -111,4 +112,84 @@ class BootstrapHolderTest {
             bootstrap.registry(registryKey)
         }
     }
+
+    @Test
+    fun `dispose 이후 다시 주입할 수 있다`() {
+        val holder = TestBootstrapHolder()
+
+        holder.inject()
+        holder.dispose()
+
+        val build = holder.inject()
+
+        assertNotNull(build)
+    }
+
+    @Test
+    fun `dispose를 여러 번 호출해도 예외가 발생하지 않는다`() {
+        val holder = TestBootstrapHolder()
+
+        holder.inject()
+
+        holder.dispose()
+        holder.dispose()
+
+        assertFailsWith<BootstrapNotInjectedException> {
+            holder.registry(registryKey)
+        }
+    }
+
+    @Test
+    fun `서로 다른 Holder의 Bootstrap 상태를 독립적으로 관리한다`() {
+        val first = TestBootstrapHolder()
+        val second = TestBootstrapHolder()
+
+        first.inject()
+        second.inject()
+
+        first.dispose()
+
+        assertFailsWith<BootstrapNotInjectedException> {
+            first.registry(registryKey)
+        }
+
+        assertFailsWith<BootstrapNotCompletedException> {
+            second.registry(registryKey)
+        }
+    }
+
+
+    @Test
+    fun `dispose 이후 기존 build 함수를 실행할 수 없다`() {
+        val holder = TestBootstrapHolder()
+
+        val build = holder.inject()
+
+        holder.dispose()
+
+        assertFailsWith<BootstrapDisposedException> {
+            build()
+        }
+    }
+
+    @Test
+    fun `dispose 이후 기존 Registry 조회가 차단된다`() {
+        val holder = TestBootstrapHolder()
+
+        val build = holder.inject()
+
+        TestRegistryHolder.registryBootstrap(holder) {
+            registry(registryKey) {
+                add("sword", "Sword")
+            }
+        }
+
+        build()
+        holder.dispose()
+
+        assertFailsWith<BootstrapNotInjectedException> {
+            holder.registry(registryKey)
+        }
+    }
+
 }

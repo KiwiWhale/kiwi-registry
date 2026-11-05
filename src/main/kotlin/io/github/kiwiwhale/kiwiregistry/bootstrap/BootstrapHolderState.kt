@@ -13,7 +13,7 @@ internal object BootstrapHolderState {
         holder: BootstrapHolder,
         bootstrap: RegistryBootstrap
     ) {
-        if (holder in bootstraps) {
+        if (bootstraps.containsKey(holder)) {
             throw BootstrapAlreadyInjectedException()
         }
 
@@ -21,13 +21,27 @@ internal object BootstrapHolderState {
     }
 
     @Synchronized
-    fun get(holder: BootstrapHolder): RegistryBootstrap {
+    fun get(
+        holder: BootstrapHolder
+    ): RegistryBootstrap {
         return bootstraps[holder]
             ?: throw BootstrapNotInjectedException()
     }
 
     @Synchronized
-    fun remove(holder: BootstrapHolder) {
-        bootstraps.remove(holder)
+    fun remove(
+        holder: BootstrapHolder
+    ): RegistryBootstrap? {
+        return bootstraps.remove(holder)
     }
+
+    @Synchronized
+    fun contains(
+        holder: BootstrapHolder
+    ): Boolean {
+        return bootstraps.containsKey(holder)
+    }
+
+    @Synchronized
+    fun size(): Int = bootstraps.size
 }

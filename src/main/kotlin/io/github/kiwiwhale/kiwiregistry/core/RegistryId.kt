@@ -28,7 +28,7 @@ data class RegistryId(
             val separator = value.indexOf(':')
 
             require(separator > 0 && separator < value.lastIndex) {
-                "Invalid registry ID: $value"
+                "Invalid registry ID '$value'. Expected format: namespace:key."
             }
 
             return RegistryId(

@@ -4,11 +4,14 @@ import io.github.kiwiwhale.kiwiregistry.core.Registry
 import io.github.kiwiwhale.kiwiregistry.core.RegistryGraph
 import io.github.kiwiwhale.kiwiregistry.core.RegistryKey
 import io.github.kiwiwhale.kiwiregistry.exception.BootstrapAlreadyCompletedException
+import io.github.kiwiwhale.kiwiregistry.exception.BootstrapDisposedException
 import io.github.kiwiwhale.kiwiregistry.exception.BootstrapInProgressException
 import io.github.kiwiwhale.kiwiregistry.exception.BootstrapNotCompletedException
 import io.github.kiwiwhale.kiwiregistry.exception.DuplicateContributionException
 import io.github.kiwiwhale.kiwiregistry.exception.InvalidContributionException
+import io.github.kiwiwhale.kiwiregistry.exception.PostHookExecutionException
 import io.github.kiwiwhale.kiwiregistry.registry.MutableRegistry
+import java.util.Collections
 
 internal class RegistryBootstrap {
 
@@ -29,13 +32,30 @@ internal class RegistryBootstrap {
     val isInitialized: Boolean
         get() = state == BootstrapState.COMPLETED
 
-    @Synchronized
-    fun submit(contribution: Contribution) {
+    val isDisposed: Boolean
+        get() = state == BootstrapState.DISPOSED
+
+    private fun checkNotCompleted() {
         when (state) {
             BootstrapState.CREATED -> Unit
             BootstrapState.BUILDING -> throw BootstrapInProgressException()
             BootstrapState.COMPLETED -> throw BootstrapAlreadyCompletedException()
+            BootstrapState.DISPOSED -> throw BootstrapDisposedException()
         }
+    }
+
+    private fun checkCompleted() {
+        when (state) {
+            BootstrapState.CREATED -> throw BootstrapNotCompletedException()
+            BootstrapState.BUILDING -> throw BootstrapInProgressException()
+            BootstrapState.COMPLETED -> Unit
+            BootstrapState.DISPOSED -> throw BootstrapDisposedException()
+        }
+    }
+
+    @Synchronized
+    fun submit(contribution: Contribution) {
+        checkNotCompleted()
 
         if (contributions.any { it.holder === contribution.holder }) {
             throw DuplicateContributionException(
@@ -45,49 +65,42 @@ internal class RegistryBootstrap {
             )
         }
 
-        contributions += contribution
+        contributions.add(contribution)
     }
 
     @Synchronized
     fun build() {
-        when (state) {
-            BootstrapState.CREATED -> Unit
-            BootstrapState.BUILDING -> throw BootstrapInProgressException()
-            BootstrapState.COMPLETED -> throw BootstrapAlreadyCompletedException()
-        }
+        checkNotCompleted()
 
         state = BootstrapState.BUILDING
 
-        val newSnapshots: List<HolderSnapshot>
-        val newGraph: RegistryGraph
-
         try {
-            contributions.forEach { contribution ->
-                contribution.preHooks.forEach { it() }
+            val pendingContributions = contributions.toList()
+
+            executePreHooks(pendingContributions)
+
+            val newSnapshots = pendingContributions.map(::evaluate)
+
+            val newGraph = createGraph(newSnapshots)
+
+            snapshots = newSnapshots
+            currentGraph = newGraph
+            state = BootstrapState.COMPLETED
+
+        } catch (exception: Exception) {
+            if (state == BootstrapState.BUILDING) {
+                state = BootstrapState.CREATED
             }
 
-            newSnapshots = contributions.map(::evaluate)
-            newGraph = createGraph(newSnapshots)
-
-        } catch (exception: Throwable) {
-            state = BootstrapState.CREATED
             throw exception
         }
 
-        snapshots = newSnapshots
-        currentGraph = newGraph
-        state = BootstrapState.COMPLETED
-
-        runPostHooks(contributions)
+        runPostHooks(contributions.toList())
     }
 
     @Synchronized
     fun rebuildRegistries(holder: RegistryHolder) {
-        when (state) {
-            BootstrapState.CREATED -> throw BootstrapNotCompletedException()
-            BootstrapState.BUILDING -> throw BootstrapInProgressException()
-            BootstrapState.COMPLETED -> Unit
-        }
+        checkCompleted()
 
         val index = snapshots.indexOfFirst {
             it.holder === holder
@@ -101,7 +114,8 @@ internal class RegistryBootstrap {
         }
 
         val contribution = contributions[index]
-        contribution.preHooks.forEach { it() }
+
+        executePreHooks(listOf(contribution))
 
         val updatedSnapshot = evaluate(contribution)
 
@@ -117,26 +131,69 @@ internal class RegistryBootstrap {
         runPostHooks(listOf(contribution))
     }
 
-    fun graph(): RegistryGraph =
-        currentGraph ?: throw BootstrapNotCompletedException()
+    @Synchronized
+    fun graph(): RegistryGraph {
+        checkCompleted()
+
+        return currentGraph
+            ?: throw BootstrapNotCompletedException()
+    }
 
     fun <K, V> getRegistry(
         key: RegistryKey<K, V>
     ): Registry<K, V> =
         graph().getRegistry(key)
 
-    private fun runPostHooks(contributions: List<Contribution>) {
+    @Synchronized
+    fun dispose() {
+        if (state == BootstrapState.DISPOSED) return
+
+        state = BootstrapState.DISPOSED
+
+        contributions.clear()
+        snapshots = emptyList()
+        currentGraph = null
+    }
+
+    private fun executePreHooks(
+        contributions: List<Contribution>
+    ) {
         contributions.forEach { contribution ->
-            contribution.postHooks.forEach { it() }
+            contribution.preHooks.forEach { hook ->
+                hook()
+            }
         }
+    }
+
+    private fun runPostHooks(
+        contributions: List<Contribution>
+    ) {
+        val exceptions = ArrayList<Exception>()
+
+        contributions.forEach { contribution ->
+            contribution.postHooks.forEach { hook ->
+                try {
+                    hook()
+                } catch (exception: Exception) {
+                    exceptions.add(exception)
+                }
+            }
+        }
+
+        val firstException = exceptions.firstOrNull() ?: return
+
+        exceptions.drop(1).forEach {
+            firstException.addSuppressed(it)
+        }
+
+        throw PostHookExecutionException(firstException)
     }
 
     @Suppress("UNCHECKED_CAST")
     private fun evaluate(
         contribution: Contribution
     ): HolderSnapshot {
-        val registries =
-            LinkedHashMap<RegistryKey<*, *>, Map<*, *>>()
+        val registries = LinkedHashMap<RegistryKey<*, *>, Map<*, *>>()
 
         for ((key, builder) in contribution.registries) {
             val typedKey = key as RegistryKey<Any?, Any?>
@@ -146,10 +203,12 @@ internal class RegistryBootstrap {
             val registryBuilder = RegistryContributionBuilder(typedKey)
             registryBuilder.typedBuilder()
 
-            registries[key] = registryBuilder.entries.toMap()
+            registries[key] = Collections.unmodifiableMap(
+                LinkedHashMap(registryBuilder.entries)
+            )
         }
 
-        return HolderSnapshot(contribution.holder, registries.toMap())
+        return HolderSnapshot(contribution.holder, Collections.unmodifiableMap(registries))
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -169,11 +228,10 @@ internal class RegistryBootstrap {
 
             val mutableRegistry = MutableRegistry(typedKey)
 
-            for ((holder, holderRegistries) in snapshots) {
-                val entries = holderRegistries[key]
-                    ?: continue
+            for ((holder, registries1) in snapshots) {
+                val entries = registries1[key] ?: continue
 
-                entries.forEach { (entryKey, value) ->
+                for ((entryKey, value) in entries) {
                     mutableRegistry.register(
                         holder,
                         entryKey,
