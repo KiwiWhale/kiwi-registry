@@ -52,25 +52,19 @@ dependencies {
 
 ## Quick Start
 
-### Create a Registry
+### Define a registry key
 
-Define a registry key with its namespace, name, and types.
+A key carries its namespace, its name, and the key/value types.
 
 ```kotlin
-data class User(
-    val name: String,
-    val level: Int
-)
-
-val USER_REGISTRY = registryKey<String, User>(
-    "example",
-    "users"
-)
+data class User(val name: String, val level: Int)
+ 
+val USER_REGISTRY = registryKey<String, User>("example", "users")
 ```
 
-### Build a Registry
+### Build a registry graph
 
-Use `registryGraph` to register entries and build an immutable registry graph.
+Use `registryGraph` to register entries and build an immutable graph.
 
 ```kotlin
 val graph = registryGraph {
@@ -81,16 +75,106 @@ val graph = registryGraph {
 }
 ```
 
-### Access Entries
-
-Retrieve the registry and access its entries.
+### Access entries
 
 ```kotlin
 val users = graph[USER_REGISTRY]
-
+ 
 println(users["admin"]) // User(name=Administrator, level=100)
-println(users.size) // 2
+println(users.size)     // 2
 ```
+
+## Contributors
+
+Contributors allow independent modules to contribute entries to the same registry.
+
+```kotlin
+val DEFAULT_USERS = RegistryContributor("default-users") {
+    registry(USER_REGISTRY) {
+        add("admin", User("Administrator", 100))
+    }
+}
+ 
+val DEVELOPER_USERS = RegistryContributor("developer-users") {
+    registry(USER_REGISTRY) {
+        add("developer", User("Developer", 50))
+    }
+}
+ 
+val graph = registryGraph {
+    contribute(DEFAULT_USERS)
+    contribute(DEVELOPER_USERS)
+}
+```
+
+Contributor IDs must be unique within a builder.
+
+## Validation
+
+Validate the registry configuration before the graph is built.
+
+```kotlin
+val graph = registryGraph {
+    registry(USER_REGISTRY) {
+        add("admin", User("Administrator", 100))
+    }
+ 
+    validate {
+        requireNotEmpty(USER_REGISTRY)
+ 
+        validateEntries(
+            key = USER_REGISTRY,
+            message = { id, _ -> "Invalid user: $id" }
+        ) { _, user ->
+            user.level > 0
+        }
+    }
+}
+```
+
+Validation supports three severity levels:
+
+| Severity  | Behavior                      |
+|-----------|-------------------------------|
+| `ERROR`   | Prevents graph construction   |
+| `WARNING` | Does not prevent construction |
+| `INFO`    | Does not prevent construction |
+
+Available operations: `requireRegistry`, `requireEntry`, `requireNotEmpty`,
+`validateEntry`, `validateRegistry`, and `validateEntries`.
+
+## RegistryGraph
+
+Multiple graphs can be merged into a new immutable graph.
+
+```kotlin
+val merged = RegistryGraph.merge(firstGraph, secondGraph)
+```
+
+- When duplicate entry keys exist, values from later graphs take precedence while preserving the original insertion position.
+- Original graphs remain unchanged.
+- Incompatible registry types are rejected.
+## RegistryProvider
+
+`RegistryProvider` provides atomic access and updates to the current registry graph.
+
+```kotlin
+val provider = RegistryProvider(graph)
+ 
+// Transform the current graph.
+provider.update { current ->
+    RegistryGraph.merge(current, anotherGraph)
+}
+ 
+// Replace the current graph.
+provider.replace(anotherGraph)
+```
+
+Compare-and-replace operations are also supported.
+
+> [!NOTE]
+> `update` transformations may execute multiple times under contention.
+> Avoid external side effects inside them.
 
 ## Building
 
@@ -115,7 +199,7 @@ Run tests:
 
 ## Documentation
 
-API documentation is available through GitHub Pages.
+API documentation is available through [GitHub Pages](https://kiwiwhale.github.io/kiwi-registry/).
 
 ## License
 

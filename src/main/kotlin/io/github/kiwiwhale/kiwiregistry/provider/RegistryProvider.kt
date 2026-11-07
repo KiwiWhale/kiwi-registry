@@ -6,10 +6,9 @@ import java.util.concurrent.atomic.AtomicReference
 /**
  * Thread-safe provider for an immutable [RegistryGraph].
  *
- * The provider stores the current graph using an atomic reference.
- * Graph replacements and updates are performed atomically.
+ * Graph replacement and updates are atomic.
  *
- * RegistryGraph instances are immutable snapshots.
+ * The provider does not modify installed graphs.
  *
  * @param initial Initial graph. Defaults to [RegistryGraph.EMPTY].
  */
@@ -17,14 +16,12 @@ class RegistryProvider(
     initial: RegistryGraph = RegistryGraph.EMPTY
 ) {
 
-    private val current =
-        AtomicReference(initial)
+    private val current = AtomicReference(initial)
 
     /**
-     * Returns the currently installed immutable graph.
+     * Returns the currently installed graph.
      *
-     * The returned reference represents a consistent snapshot
-     * at the time of retrieval.
+     * The returned graph is an immutable snapshot.
      */
     val graph: RegistryGraph
         get() = current.get()
@@ -32,7 +29,7 @@ class RegistryProvider(
     /**
      * Atomically replaces the current graph.
      *
-     * @param graph New graph to install.
+     * @param graph Replacement graph.
      * @return Previously installed graph.
      */
     fun replace(graph: RegistryGraph): RegistryGraph =
@@ -41,19 +38,16 @@ class RegistryProvider(
     /**
      * Atomically updates the current graph.
      *
-     * The transformation is executed using a compare-and-set loop.
-     * Under concurrent contention, it may execute multiple times.
+     * The transformation may execute multiple times
+     * under concurrent contention.
      *
-     * The transformation must therefore be side-effect-free.
+     * The transformation must be side-effect-free.
      *
-     * If the transformation throws an exception, the current graph
-     * remains unchanged by this operation.
+     * If the transformation throws an exception,
+     * the current graph remains unchanged by this operation.
      *
-     * @param transform Function producing a replacement graph
-     * from the currently installed graph.
+     * @param transform Transformation applied to the current graph.
      * @return Successfully installed graph.
-     *
-     * @throws Exception If the transformation fails.
      */
     fun update(
         transform: (RegistryGraph) -> RegistryGraph
@@ -69,14 +63,12 @@ class RegistryProvider(
     }
 
     /**
-     * Atomically replaces the current graph only if the current
-     * reference is identical to [expected].
+     * Replaces the current graph only if its reference
+     * is identical to [expected].
      *
-     * Comparison uses reference identity rather than structural equality.
-     *
-     * @param expected Expected currently installed graph.
-     * @param replacement Graph to install if the expectation matches.
-     * @return True if the replacement succeeded.
+     * @param expected Expected current graph.
+     * @param replacement Replacement graph.
+     * @return True if replacement succeeded.
      */
     fun compareAndReplace(
         expected: RegistryGraph,

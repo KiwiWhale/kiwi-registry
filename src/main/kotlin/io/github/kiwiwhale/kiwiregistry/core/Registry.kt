@@ -89,11 +89,13 @@ interface Registry<K : Any, V : Any> {
      * @return Associated value.
      * @throws RegistryEntryNotFoundException If the key does not exist.
      */
-    fun getOrThrow(key: K): V =
-        get(key) ?: throw RegistryEntryNotFoundException(
-            this.key.id,
-            key
-        )
+    fun getOrThrow(key: K): V {
+        if (!data.containsKey(key)) {
+            throw RegistryEntryNotFoundException(this.key.id, key)
+        }
+
+        return data.getValue(key)
+    }
 
     /**
      * Returns the value associated with the specified key,

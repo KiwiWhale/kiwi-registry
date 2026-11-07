@@ -26,18 +26,8 @@ class RegistryGraph internal constructor(
 ) {
 
     private val registries: Map<RegistryId, Registry<*, *>> =
-        Collections.unmodifiableMap(
-            snapshotRegistries(registries)
-        )
+        Collections.unmodifiableMap(snapshotRegistries(registries))
 
-    /**
-     * Creates immutable snapshots of the supplied registries.
-     *
-     * @param source Source registries.
-     * @return Ordered map containing immutable registry snapshots.
-     * @throws IllegalArgumentException If a registry ID does not match its key.
-     * @throws RegistryBuildException If a registry cannot be copied.
-     */
     private fun snapshotRegistries(
         source: Map<RegistryId, Registry<*, *>>
     ): LinkedHashMap<RegistryId, Registry<*, *>> =
@@ -92,31 +82,31 @@ class RegistryGraph internal constructor(
         id in registries
 
     /**
-     * Checks whether a registry with the specified key's ID exists.
-     *
-     * This operation checks only the registry ID.
+     * Checks only the registry ID.
      * Runtime type compatibility is not verified.
-     *
-     * @param key Typed registry identifier.
-     * @return True if a registry with the same ID exists.
      */
     operator fun contains(key: RegistryKey<*, *>): Boolean =
         key.id in registries
 
     /**
-     * Returns the registry associated with the specified key.
+     * Returns a registry by ID.
      *
-     * @param key Typed registry identifier.
-     * @return Associated registry.
      * @throws RegistryNotFoundException If the registry does not exist.
-     * @throws RegistryTypeMismatchException If its types do not match.
+     */
+    fun getOrThrow(id: RegistryId): Registry<*, *> =
+        registries[id] ?: throw RegistryNotFoundException(id)
+
+    /**
+     * Returns a registry using its typed key.
+     *
+     * @throws RegistryNotFoundException If the registry does not exist.
+     * @throws RegistryTypeMismatchException If its runtime types differ.
      */
     @Suppress("UNCHECKED_CAST")
-    operator fun <K : Any, V : Any> get(
+    fun <K : Any, V : Any> getOrThrow(
         key: RegistryKey<K, V>
     ): Registry<K, V> {
-        val registry = registries[key.id]
-            ?: throw RegistryNotFoundException(key.id)
+        val registry = getOrThrow(key.id)
 
         if (!registry.key.hasSameTypes(key)) {
             throw RegistryTypeMismatchException(key.id)
@@ -124,6 +114,14 @@ class RegistryGraph internal constructor(
 
         return registry as Registry<K, V>
     }
+
+    /**
+     * Alias for [getOrThrow].
+     */
+    operator fun <K : Any, V : Any> get(
+        key: RegistryKey<K, V>
+    ): Registry<K, V> =
+        getOrThrow(key)
 
     /**
      * Returns a registry by ID.
@@ -135,18 +133,20 @@ class RegistryGraph internal constructor(
         registries[id]
 
     /**
-     * Returns a registry by its typed key.
+     * Returns null if the registry does not exist.
      *
-     * @param key Typed registry identifier.
-     * @return Associated registry, or null if absent.
-     * @throws RegistryTypeMismatchException If its types do not match.
+     * Throws [RegistryTypeMismatchException] if the ID exists
+     * but the runtime types do not match.
      */
     fun <K : Any, V : Any> getOrNull(
         key: RegistryKey<K, V>
-    ): Registry<K, V>? =
-        registries[key.id]?.let {
-            get(key)
+    ): Registry<K, V>? {
+        if (key.id !in registries) {
+            return null
         }
+
+        return getOrThrow(key)
+    }
 
     /**
      * Finds a registry using its typed key.
@@ -242,20 +242,23 @@ class RegistryGraph internal constructor(
         /**
          * Merges multiple registry graphs into a new graph.
          *
+         * Registry order is determined by the first occurrence
+         * of each registry ID.
+         *
+         * When duplicate entry keys are encountered:
+         *
+         * - The value from the later graph replaces the previous value.
+         * - The original insertion position is preserved.
+         * - New entry keys are appended in encounter order.
+         *
          * Registries with the same ID must have compatible runtime types.
          *
-         * When duplicate entry keys are encountered, values from
-         * later graphs replace values from earlier graphs.
-         *
-         * Registry and entry insertion order is preserved.
          * Existing graphs are never modified.
          *
          * @param graphs Registry graphs to merge, in merge order.
-         * @return A new merged registry graph, or [EMPTY] if no graphs are supplied.
-         * @throws RegistryTypeMismatchException If registries with
-         * the same ID have incompatible types.
-         * @throws RegistryBuildException If the merged graph cannot
-         * be constructed.
+         * @return A new merged graph, or [EMPTY] if no graphs are supplied.
+         * @throws RegistryTypeMismatchException If registry types differ.
+         * @throws RegistryBuildException If the merged graph cannot be built.
          */
         fun merge(
             vararg graphs: RegistryGraph
@@ -277,8 +280,8 @@ class RegistryGraph internal constructor(
                         )
 
                         merged[id] = MergedRegistry(
-                            key = registry.key,
-                            entries = entries
+                            registry.key,
+                            entries
                         )
 
                         continue

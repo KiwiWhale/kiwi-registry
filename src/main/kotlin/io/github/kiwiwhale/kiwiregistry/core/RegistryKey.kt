@@ -8,6 +8,12 @@ import kotlin.reflect.KClass
  * Equality and hash code are based exclusively on [id].
  * Runtime compatibility is additionally checked using key and value types.
  *
+ * Runtime type checks use [KClass] and therefore cannot distinguish
+ * parameterized generic types due to JVM type erasure.
+ *
+ * For example, List<String> and List<Int> are treated as the same
+ * runtime type.
+ *
  * Primitive JVM types are not supported.
  *
  * @param K Registry key type.
@@ -33,10 +39,11 @@ class RegistryKey<K : Any, V : Any>(
     /**
      * Checks whether another registry key has identical runtime types.
      *
+     * Generic type arguments are not checked because of JVM type erasure.
      * Registry IDs are intentionally not considered by this check.
      *
      * @param other Registry key to compare.
-     * @return True if both key and value types match.
+     * @return True if both raw key and value classes match.
      */
     internal fun hasSameTypes(other: RegistryKey<*, *>): Boolean =
         key == other.key && value == other.value
@@ -69,6 +76,8 @@ class RegistryKey<K : Any, V : Any>(
  * Creates a typed registry key from a namespace and key name.
  *
  * Runtime types are inferred from the reified type parameters.
+ * Only raw runtime classes are retained; generic type arguments
+ * cannot be checked at runtime.
  *
  * @param namespace Registry namespace.
  * @param key Registry name within the namespace.
@@ -88,6 +97,8 @@ inline fun <reified K : Any, reified V : Any> registryKey(
  * Creates a typed registry key from an existing [RegistryId].
  *
  * Runtime types are inferred from the reified type parameters.
+ * Only raw runtime classes are retained; generic type arguments
+ * cannot be checked at runtime.
  *
  * @param id Registry identifier.
  * @return Typed registry key.

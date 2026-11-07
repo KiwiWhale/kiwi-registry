@@ -154,4 +154,17 @@ class RegistryScope internal constructor(
      */
     val contributorIds: Set<String>
         get() = builder.contributorIds
+
+    /**
+     * Defines validation rules for the configured registries.
+     *
+     * Validation is executed during graph construction.
+     *
+     * @param block Validation rules.
+     */
+    fun validate(
+        block: RegistryValidationScope.() -> Unit
+    ) {
+        builder.validate(block)
+    }
 }

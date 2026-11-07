@@ -5,6 +5,7 @@ import io.github.kiwiwhale.kiwiregistry.USER_REGISTRY
 import io.github.kiwiwhale.kiwiregistry.User
 import io.github.kiwiwhale.kiwiregistry.dsl.registryGraph
 import io.github.kiwiwhale.kiwiregistry.exception.RegistryNotFoundException
+import io.github.kiwiwhale.kiwiregistry.exception.RegistryTypeMismatchException
 import kotlin.test.*
 
 class RegistryGraphTest {
@@ -38,7 +39,7 @@ class RegistryGraphTest {
             }
         }
 
-        assertTrue(graph.find(USER_REGISTRY) != null)
+        assertNotNull(graph.find(USER_REGISTRY))
     }
 
     @Test
@@ -64,6 +65,8 @@ class RegistryGraphTest {
         }
 
         assertEquals(2, graph.size)
+        assertTrue(graph.isNotEmpty)
+        assertFalse(graph.isEmpty)
     }
 
     @Test
@@ -85,6 +88,7 @@ class RegistryGraphTest {
     @Test
     fun `RegistryGraph의 빈 인스턴스를 제공한다`() {
         assertTrue(RegistryGraph.EMPTY.isEmpty)
+        assertTrue(RegistryGraph.EMPTY.isNotEmpty.not())
         assertEquals(0, RegistryGraph.EMPTY.size)
     }
 
@@ -123,7 +127,6 @@ class RegistryGraphTest {
         }
 
         val merged = RegistryGraph.merge(first, second)
-
         val registry = merged[USER_REGISTRY]
 
         assertEquals(3, registry.size)
@@ -152,6 +155,35 @@ class RegistryGraphTest {
         assertEquals(
             User("Updated Admin", 200),
             merged[USER_REGISTRY]["admin"]
+        )
+    }
+
+    @Test
+    fun `중복 Entry 교체 시 기존 삽입 순서를 유지한다`() {
+        val first = registryGraph {
+            registry(USER_REGISTRY) {
+                add("admin", User("Admin", 100))
+                add("guest", User("Guest", 10))
+            }
+        }
+
+        val second = registryGraph {
+            registry(USER_REGISTRY) {
+                add("admin", User("Updated Admin", 200))
+                add("moderator", User("Moderator", 50))
+            }
+        }
+
+        val registry = RegistryGraph.merge(first, second)[USER_REGISTRY]
+
+        assertEquals(
+            listOf("admin", "guest", "moderator"),
+            registry.keys.toList()
+        )
+
+        assertEquals(
+            User("Updated Admin", 200),
+            registry["admin"]
         )
     }
 
@@ -201,6 +233,85 @@ class RegistryGraphTest {
 
         assertFailsWith<UnsupportedOperationException> {
             mutable["guest"] = User("Guest", 10)
+        }
+    }
+
+    @Test
+    fun `getOrThrow로 Registry를 ID로 조회한다`() {
+        val graph = registryGraph {
+            registry(USER_REGISTRY) {
+                add("admin", User("Admin", 100))
+            }
+        }
+
+        val registry = graph.getOrThrow(USER_REGISTRY.id)
+
+        assertEquals(1, registry.size)
+        assertEquals(USER_REGISTRY.id, registry.key.id)
+    }
+
+    @Test
+    fun `getOrThrow로 Registry를 Typed Key로 조회한다`() {
+        val graph = registryGraph {
+            registry(USER_REGISTRY) {
+                add("admin", User("Admin", 100))
+            }
+        }
+
+        assertEquals(
+            User("Admin", 100),
+            graph.getOrThrow(USER_REGISTRY)["admin"]
+        )
+    }
+
+    @Test
+    fun `존재하지 않는 Registry ID의 getOrThrow는 예외를 발생시킨다`() {
+        assertFailsWith<RegistryNotFoundException> {
+            RegistryGraph.EMPTY.getOrThrow(USER_REGISTRY.id)
+        }
+    }
+
+    @Test
+    fun `존재하지 않는 Typed Registry의 getOrThrow는 예외를 발생시킨다`() {
+        assertFailsWith<RegistryNotFoundException> {
+            RegistryGraph.EMPTY.getOrThrow(USER_REGISTRY)
+        }
+    }
+
+    @Test
+    fun `여러 Graph의 Registry 삽입 순서를 유지한다`() {
+        val first = registryGraph {
+            registry(USER_REGISTRY) {}
+            registry(PRODUCT_REGISTRY) {}
+        }
+
+        val second = registryGraph {
+            registry(USER_REGISTRY) {}
+        }
+
+        val merged = RegistryGraph.merge(first, second)
+
+        assertEquals(
+            listOf(USER_REGISTRY.id, PRODUCT_REGISTRY.id),
+            merged.registryIds.toList()
+        )
+    }
+
+    @Test
+    fun `Registry ID가 같아도 런타임 타입이 다르면 병합에 실패한다`() {
+        val first = registryGraph {
+            registry(USER_REGISTRY) {}
+        }
+
+        val incompatibleKey =
+            registryKey<String, String>(USER_REGISTRY.id)
+
+        val second = registryGraph {
+            registry(incompatibleKey) {}
+        }
+
+        assertFailsWith<RegistryTypeMismatchException> {
+            RegistryGraph.merge(first, second)
         }
     }
 }

@@ -5,12 +5,13 @@ import io.github.kiwiwhale.kiwiregistry.exception.RegistryBuildException
 import io.github.kiwiwhale.kiwiregistry.exception.RegistryEntryNotFoundException
 
 /**
- * Mutable entry configuration scope.
+ * Mutable configuration scope for registry entries.
  *
- * This object is only valid during its registry configuration block.
+ * This scope is valid only while its associated registry
+ * configuration block is executing.
  *
- * Entries are committed by [RegistryBuilder] only after successful
- * completion of the configuration block.
+ * Changes are committed by [RegistryBuilder] only when the
+ * configuration block completes successfully.
  *
  * This class is not thread-safe.
  *
@@ -28,12 +29,17 @@ class RegistryEntries<K : Any, V : Any> internal constructor(
     /**
      * Closes this configuration scope.
      *
-     * Further operations on this instance are rejected.
+     * All subsequent operations are rejected.
      */
     internal fun close() {
         active = false
     }
 
+    /**
+     * Ensures that this scope is still active.
+     *
+     * @throws IllegalStateException If the scope has been closed.
+     */
     private fun checkActive() {
         check(active) {
             "RegistryEntries is no longer active."
@@ -45,7 +51,10 @@ class RegistryEntries<K : Any, V : Any> internal constructor(
      *
      * @throws IllegalArgumentException If either type is incompatible.
      */
-    private fun validateEntry(entryKey: K, value: V) {
+    private fun validateEntry(
+        entryKey: K,
+        value: V
+    ) {
         require(key.key.isInstance(entryKey)) {
             "Invalid key type in registry '${key.id}'."
         }
@@ -56,7 +65,7 @@ class RegistryEntries<K : Any, V : Any> internal constructor(
     }
 
     /**
-     * Throws if the specified key already exists.
+     * Checks whether an entry key already exists.
      *
      * @throws RegistryBuildException If the key already exists.
      */
@@ -70,11 +79,19 @@ class RegistryEntries<K : Any, V : Any> internal constructor(
     }
 
     /**
-     * Adds an entry to the registry.
+     * Adds an entry.
      *
      * Duplicate keys are not allowed.
+     *
+     * @param key Entry key.
+     * @param value Entry value.
+     * @throws RegistryBuildException If the key already exists.
+     * @throws IllegalArgumentException If the runtime types are incompatible.
      */
-    fun add(key: K, value: V) {
+    fun add(
+        key: K,
+        value: V
+    ) {
         checkActive()
         validateEntry(key, value)
         checkDuplicate(key)
@@ -83,17 +100,15 @@ class RegistryEntries<K : Any, V : Any> internal constructor(
     }
 
     /**
-     * Adds multiple entries to the registry.
+     * Adds multiple entries.
      *
-     * All entries are validated before any entry is inserted.
+     * All entries are validated before any modification is made.
      *
-     * Duplicate keys against existing entries or within the
-     * supplied collection are rejected.
+     * Duplicate keys against existing entries are rejected.
      *
      * @param entries Entries to add.
      * @throws RegistryBuildException If a duplicate key exists.
      * @throws IllegalArgumentException If an entry has an incompatible type.
-     * @throws IllegalStateException If this scope is no longer active.
      */
     fun addAll(entries: Map<K, V>) {
         checkActive()
@@ -104,13 +119,6 @@ class RegistryEntries<K : Any, V : Any> internal constructor(
             validateEntry(entryKey, value)
             checkDuplicate(entryKey)
 
-            if (pending.containsKey(entryKey)) {
-                throw RegistryBuildException(
-                    "Duplicate entry '$entryKey' in registry '${key.id}' " +
-                            "from contributor '$contributor'."
-                )
-            }
-
             pending[entryKey] = value
         }
 
@@ -120,11 +128,11 @@ class RegistryEntries<K : Any, V : Any> internal constructor(
     }
 
     /**
-     * Checks whether the specified key exists.
+     * Checks whether an entry with the specified key exists.
      */
     fun contains(key: K): Boolean {
         checkActive()
-        return entries.containsKey(key)
+        return key in entries
     }
 
     /**
@@ -136,23 +144,32 @@ class RegistryEntries<K : Any, V : Any> internal constructor(
     }
 
     /**
-     * Removes an entry by its key.
+     * Removes an entry.
      *
      * @return True if an entry was removed.
      */
     fun remove(key: K): Boolean {
         checkActive()
-        return entries.remove(key) != null
+
+        if (!entries.containsKey(key)) {
+            return false
+        }
+
+        entries.remove(key)
+        return true
     }
 
     /**
      * Replaces an existing entry.
      *
-     * The key must already exist.
+     * The specified key must already exist.
      *
-     * @return True if the entry was replaced.
+     * @return True if the entry was replaced, otherwise false.
      */
-    fun replace(key: K, value: V): Boolean {
+    fun replace(
+        key: K,
+        value: V
+    ): Boolean {
         checkActive()
         validateEntry(key, value)
 
@@ -165,7 +182,7 @@ class RegistryEntries<K : Any, V : Any> internal constructor(
     }
 
     /**
-     * Returns an entry by its key, or null if absent.
+     * Returns an entry, or null if absent.
      */
     @Suppress("UNCHECKED_CAST")
     fun getOrNull(key: K): V? {
@@ -174,20 +191,26 @@ class RegistryEntries<K : Any, V : Any> internal constructor(
     }
 
     /**
-     * Returns an entry by its key.
+     * Returns an entry.
      *
-     * @throws NoSuchElementException If the key does not exist.
+     * @throws RegistryEntryNotFoundException If the entry does not exist.
      */
+    @Suppress("UNCHECKED_CAST")
     fun getOrThrow(key: K): V {
         checkActive()
 
-        @Suppress("UNCHECKED_CAST")
-        return entries[key] as V?
-            ?: throw RegistryEntryNotFoundException(this.key.id, key)
+        if (!entries.containsKey(key)) {
+            throw RegistryEntryNotFoundException(
+                this.key.id,
+                key
+            )
+        }
+
+        return entries[key] as V
     }
 
     /**
-     * Removes all configured entries.
+     * Removes all entries.
      *
      * @return Number of removed entries.
      */
@@ -201,7 +224,7 @@ class RegistryEntries<K : Any, V : Any> internal constructor(
     }
 
     /**
-     * Number of entries currently configured.
+     * Number of configured entries.
      */
     val size: Int
         get() {
@@ -210,7 +233,7 @@ class RegistryEntries<K : Any, V : Any> internal constructor(
         }
 
     /**
-     * Whether this registry currently contains no entries.
+     * Whether this scope contains no entries.
      */
     val isEmpty: Boolean
         get() {
@@ -219,7 +242,7 @@ class RegistryEntries<K : Any, V : Any> internal constructor(
         }
 
     /**
-     * Whether this registry currently contains at least one entry.
+     * Whether this scope contains at least one entry.
      */
     val isNotEmpty: Boolean
         get() = !isEmpty

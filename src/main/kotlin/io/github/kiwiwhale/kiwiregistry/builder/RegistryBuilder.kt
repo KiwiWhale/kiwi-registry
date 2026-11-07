@@ -4,21 +4,28 @@ import io.github.kiwiwhale.kiwiregistry.core.Registry
 import io.github.kiwiwhale.kiwiregistry.core.RegistryGraph
 import io.github.kiwiwhale.kiwiregistry.core.RegistryId
 import io.github.kiwiwhale.kiwiregistry.core.RegistryKey
+import io.github.kiwiwhale.kiwiregistry.dsl.RegistryValidationScope
 import io.github.kiwiwhale.kiwiregistry.exception.RegistryBuildException
 import io.github.kiwiwhale.kiwiregistry.exception.RegistryTypeMismatchException
+import io.github.kiwiwhale.kiwiregistry.exception.RegistryValidationException
 import io.github.kiwiwhale.kiwiregistry.internal.DefaultRegistry
+import io.github.kiwiwhale.kiwiregistry.validation.RegistryValidator
 import java.util.Collections
 
 /**
  * Mutable builder used to construct an immutable [RegistryGraph].
  *
  * Registry modifications are performed transactionally.
- * Failed registry configurations and contributors do not commit their changes.
+ * Failed registry configurations and contributors do not commit
+ * their changes.
  *
  * This builder is not thread-safe.
  * All operations must be performed from a single thread.
  *
  * A successful [build] permanently closes this builder.
+ *
+ * @see RegistryEntries
+ * @see RegistryContributor
  */
 class RegistryBuilder internal constructor() {
 
@@ -27,8 +34,8 @@ class RegistryBuilder internal constructor() {
         val entries: LinkedHashMap<Any, Any> = LinkedHashMap()
     ) {
         fun copy(): MutableEntries =
-            MutableEntries(key).also {
-                it.entries.putAll(entries)
+            MutableEntries(key).also { copy ->
+                copy.entries.putAll(entries)
             }
     }
 
@@ -38,22 +45,26 @@ class RegistryBuilder internal constructor() {
         BUILT
     }
 
+    private var state = State.OPEN
+
     private var registries =
         LinkedHashMap<RegistryId, MutableEntries>()
 
     private val executedContributorIds =
         LinkedHashSet<String>()
 
+    private val validationBlocks =
+        mutableListOf<RegistryValidationScope.() -> Unit>()
+
     private var currentContributor: String? = null
 
     private var activeRegistryBlock = false
 
-    private var state = State.OPEN
-
     /**
-     * Ensures that the builder is still available for modification.
+     * Ensures that the builder is available for modification.
      *
-     * @throws IllegalStateException If the builder is building or has been built.
+     * @throws IllegalStateException If the builder is building
+     * or has already been built.
      */
     private fun checkOpen() {
         check(state == State.OPEN) {
@@ -64,33 +75,39 @@ class RegistryBuilder internal constructor() {
                 State.BUILT ->
                     "RegistryBuilder has already been built."
 
-                State.OPEN -> ""
+                State.OPEN ->
+                    "RegistryBuilder is open."
             }
         }
     }
 
     /**
-     * Ensures that the builder can start building a registry graph.
+     * Prevents builder-level operations while a registry
+     * configuration block is executing.
      *
-     * @throws IllegalStateException If a configuration block is executing.
+     * RegistryEntries remains the only supported mutation
+     * interface inside a registry block.
      */
-    private fun checkCanBuild() {
-        checkOpen()
-
-        check(currentContributor == null) {
-            "Cannot build while a contributor is executing."
-        }
-
+    private fun checkNoActiveRegistryBlock() {
         check(!activeRegistryBlock) {
-            "Cannot build while a registry block is executing."
+            "Cannot perform this operation inside a registry block."
         }
     }
 
     /**
-     * Creates an independent copy of all configured registries.
-     *
-     * @param source Registries to copy.
-     * @return Mutable copy preserving registry and entry insertion order.
+     * Ensures that a registry graph can be built.
+     */
+    private fun checkCanBuild() {
+        checkOpen()
+        checkNoActiveRegistryBlock()
+
+        check(currentContributor == null) {
+            "Cannot build while a contributor is executing."
+        }
+    }
+
+    /**
+     * Creates an independent mutable snapshot of the registries.
      */
     private fun copyRegistries(
         source: Map<RegistryId, MutableEntries>
@@ -102,11 +119,9 @@ class RegistryBuilder internal constructor() {
         }
 
     /**
-     * Validates the runtime types of an existing registry against a key.
+     * Validates the runtime types of an existing registry.
      *
-     * @param existing Existing registry entries, if present.
-     * @param key Key to validate.
-     * @throws RegistryTypeMismatchException If the registry types differ.
+     * @throws RegistryTypeMismatchException If the types differ.
      */
     private fun validateRegistryKey(
         existing: MutableEntries?,
@@ -120,21 +135,23 @@ class RegistryBuilder internal constructor() {
     /**
      * Executes a contributor as an isolated transaction.
      *
-     * All registry changes made during the block are committed
-     * only if the block completes successfully.
+     * All registry changes are committed only if the
+     * configuration block completes successfully.
      *
-     * A failed contributor is rolled back completely, and its ID
-     * remains available for future use.
+     * A failed contributor is rolled back completely.
+     * Its ID remains available for future execution.
      *
-     * External side effects are not rolled back.
+     * External side effects cannot be rolled back.
      *
-     * Nested contributors and contributors inside registry blocks
-     * are not supported.
+     * Nested contributors and contributors inside registry
+     * configuration blocks are not supported.
      *
      * @param id Unique contributor identifier.
      * @param block Configuration to execute.
-     * @throws IllegalArgumentException If the ID is blank or contains surrounding whitespace.
-     * @throws IllegalStateException If the contributor is duplicated or execution is nested.
+     *
+     * @throws IllegalArgumentException If the ID is invalid.
+     * @throws IllegalStateException If execution is duplicated
+     * or nested.
      */
     fun contributor(
         id: String,
@@ -150,9 +167,7 @@ class RegistryBuilder internal constructor() {
             "Contributor ID cannot contain surrounding whitespace."
         }
 
-        check(!activeRegistryBlock) {
-            "Cannot execute a contributor inside a registry block."
-        }
+        checkNoActiveRegistryBlock()
 
         check(currentContributor == null) {
             "Nested contributors are not supported."
@@ -169,6 +184,7 @@ class RegistryBuilder internal constructor() {
 
         try {
             block()
+
             executedContributorIds.add(id)
         } catch (exception: Throwable) {
             registries = previousRegistries
@@ -192,26 +208,24 @@ class RegistryBuilder internal constructor() {
      * Configures entries for a registry.
      *
      * Existing entries are preserved.
-     * New entries are committed only after successful completion
-     * of the configuration block.
+     * New entries are committed only after successful
+     * completion of the configuration block.
      *
      * Registry configuration blocks cannot be nested.
      *
      * @param key Typed identifier of the target registry.
      * @param block Entry configuration.
-     * @throws RegistryTypeMismatchException If an existing registry has incompatible types.
-     * @throws RegistryBuildException If entry configuration fails.
-     * @throws IllegalStateException If another registry block is executing.
+     *
+     * @throws RegistryTypeMismatchException If registry types differ.
+     * @throws IllegalStateException If the builder is unavailable
+     * or another registry block is executing.
      */
     fun <K : Any, V : Any> registry(
         key: RegistryKey<K, V>,
         block: RegistryEntries<K, V>.() -> Unit
     ) {
         checkOpen()
-
-        check(!activeRegistryBlock) {
-            "Nested registry blocks are not supported."
-        }
+        checkNoActiveRegistryBlock()
 
         val existing = registries[key.id]
 
@@ -248,42 +262,33 @@ class RegistryBuilder internal constructor() {
     /**
      * Checks whether a registry with the specified ID exists.
      *
-     * @param id Registry identifier.
-     * @return True if the registry exists.
+     * This operation does not modify the builder.
      */
     fun containsRegistry(id: RegistryId): Boolean =
-        id in registries
+        registries.containsKey(id)
 
     /**
-     * Checks whether a registry with the specified key's ID exists.
+     * Checks whether a registry with the specified key exists.
      *
-     * This operation checks only the ID and does not verify
-     * runtime type compatibility.
-     *
-     * @param key Typed registry identifier.
-     * @return True if the registry exists.
+     * Only the ID is checked. Runtime types are not verified.
      */
     fun containsRegistry(key: RegistryKey<*, *>): Boolean =
         containsRegistry(key.id)
 
     /**
-     * Returns the number of entries in the specified registry.
+     * Returns the number of entries in a registry.
      *
-     * @param id Registry identifier.
-     * @return Entry count, or null if the registry does not exist.
+     * @return Entry count, or null if absent.
      */
     fun getEntryCount(id: RegistryId): Int? =
         registries[id]?.entries?.size
 
     /**
-     * Returns the number of entries in the specified registry.
+     * Returns the number of entries in a registry.
      *
-     * The runtime types of the supplied key must match the
-     * registered registry.
+     * Runtime types must match the registered registry.
      *
-     * @param key Typed registry identifier.
-     * @return Entry count, or null if the registry does not exist.
-     * @throws RegistryTypeMismatchException If runtime types do not match.
+     * @throws RegistryTypeMismatchException If types differ.
      */
     fun getEntryCount(key: RegistryKey<*, *>): Int? {
         val existing = registries[key.id] ?: return null
@@ -294,17 +299,13 @@ class RegistryBuilder internal constructor() {
     }
 
     /**
-     * Removes the specified registry.
+     * Removes a registry and all its entries.
      *
-     * The registry's entries are removed together with it.
-     *
-     * @param key Typed registry identifier.
-     * @return True if a registry was removed, or false if absent.
-     * @throws RegistryTypeMismatchException If the registered types differ.
-     * @throws IllegalStateException If the builder is not open.
+     * @return True if the registry was removed.
      */
     fun removeRegistry(key: RegistryKey<*, *>): Boolean {
         checkOpen()
+        checkNoActiveRegistryBlock()
 
         val existing = registries[key.id] ?: return false
 
@@ -316,17 +317,15 @@ class RegistryBuilder internal constructor() {
     }
 
     /**
-     * Removes all entries from the specified registry.
+     * Removes all entries from a registry.
      *
      * The registry itself remains registered.
      *
-     * @param key Typed registry identifier.
-     * @return Number of removed entries, or null if the registry does not exist.
-     * @throws RegistryTypeMismatchException If the registered types differ.
-     * @throws IllegalStateException If the builder is not open.
+     * @return Number of removed entries, or null if absent.
      */
     fun clearRegistry(key: RegistryKey<*, *>): Int? {
         checkOpen()
+        checkNoActiveRegistryBlock()
 
         val existing = registries[key.id] ?: return null
 
@@ -340,55 +339,120 @@ class RegistryBuilder internal constructor() {
     }
 
     /**
-     * Builds an immutable [RegistryGraph] from the configured registries.
+     * Registers validation rules to execute during build.
      *
-     * A successful build permanently closes this builder.
-     * If building fails, the builder remains open.
+     * Validation blocks are executed in registration order.
      *
-     * @return Immutable registry graph.
-     * @throws IllegalStateException If the builder is already building,
-     * has been built, or a configuration block is executing.
-     * @throws RegistryBuildException If graph construction fails.
+     * @param block Validation configuration.
+     *
+     * @throws IllegalStateException If a contributor or
+     * registry configuration block is executing.
+     */
+    fun validate(
+        block: RegistryValidationScope.() -> Unit
+    ) {
+        checkOpen()
+        checkNoActiveRegistryBlock()
+
+        check(currentContributor == null) {
+            "Cannot register validation inside a contributor."
+        }
+
+        validationBlocks.add(block)
+    }
+
+    /**
+     * Creates immutable registry snapshots.
      */
     @Suppress("UNCHECKED_CAST")
+    private fun createRegistries(): LinkedHashMap<RegistryId, Registry<*, *>> {
+        val result =
+            LinkedHashMap<RegistryId, Registry<*, *>>()
+
+        for ((id, mutable) in registries) {
+            val key = mutable.key as RegistryKey<Any, Any>
+
+            result[id] = DefaultRegistry(
+                key = key,
+                source = LinkedHashMap(mutable.entries)
+            )
+        }
+
+        return result
+    }
+
+    /**
+     * Executes all registered validation rules.
+     *
+     * @throws RegistryValidationException If validation fails.
+     */
+    private fun validateRegistries(
+        registries: Map<RegistryId, Registry<*, *>>
+    ) {
+        if (validationBlocks.isEmpty()) {
+            return
+        }
+
+        val validator = RegistryValidator(registries)
+
+        for (block in validationBlocks) {
+            validator.validate(block)
+        }
+
+        val result = validator.result()
+
+        if (result.hasErrors) {
+            throw RegistryValidationException(result)
+        }
+    }
+
+    /**
+     * Builds an immutable [RegistryGraph].
+     *
+     * A successful build permanently closes this builder.
+     *
+     * If construction or validation fails, the builder
+     * returns to the OPEN state and can be modified or rebuilt.
+     *
+     * @return Immutable registry graph.
+     *
+     * @throws IllegalStateException If the builder is already
+     * building, built, or executing a configuration block.
+     * @throws RegistryBuildException If graph construction fails.
+     * @throws RegistryValidationException If validation fails.
+     */
     fun build(): RegistryGraph {
         checkCanBuild()
 
         state = State.BUILDING
 
+        var succeeded = false
+
         try {
-            val result =
-                LinkedHashMap<RegistryId, Registry<*, *>>()
+            val builtRegistries = createRegistries()
 
-            for ((id, mutable) in registries) {
-                val key = mutable.key as RegistryKey<Any, Any>
+            validateRegistries(builtRegistries)
 
-                result[id] = DefaultRegistry(
-                    key = key,
-                    source = LinkedHashMap(mutable.entries)
-                )
-            }
+            val graph = RegistryGraph(builtRegistries)
 
-            val graph = RegistryGraph(result)
-
-            state = State.BUILT
+            succeeded = true
 
             return graph
-        } catch (exception: Throwable) {
-            state = State.OPEN
-
-            if (exception is Error) {
-                throw exception
-            }
-
-            if (exception is RegistryBuildException) {
-                throw exception
-            }
-
+        } catch (exception: RegistryBuildException) {
+            throw exception
+        } catch (exception: RegistryValidationException) {
+            throw exception
+        } catch (exception: Exception) {
             throw RegistryBuildException(
                 "Failed to build RegistryGraph.",
                 exception
             )
+        } finally {
+            state = if (succeeded) {
+                State.BUILT
+            } else {
+                State.OPEN
+            }
         }
     }
 
@@ -422,9 +486,6 @@ class RegistryBuilder internal constructor() {
 
     /**
      * Checks whether a contributor has been successfully executed.
-     *
-     * @param id Contributor identifier.
-     * @return True if the contributor was successfully executed.
      */
     fun hasContributor(id: String): Boolean =
         id in executedContributorIds
