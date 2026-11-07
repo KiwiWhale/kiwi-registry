@@ -7,85 +7,75 @@ import kotlin.test.assertFailsWith
 class RegistryIdTest {
 
     @Test
-    fun `라지스트리를 생성`() {
-        val id = RegistryId("game", "items")
+    fun `정상적인 RegistryId를 생성한다`() {
+        val id = RegistryId("example", "users")
 
-        assertEquals("game", id.namespace)
-        assertEquals("items", id.key)
-        assertEquals("game:items", id.toString())
+        assertEquals("example", id.namespace)
+        assertEquals("users", id.key)
+        assertEquals("example:users", id.toString())
     }
 
     @Test
-    fun `문자열에서 라지스트리를 생성`() {
-        val id = RegistryId.parse("game:items")
-
-        assertEquals(id, RegistryId("game", "items"))
-    }
-
-    @Test
-    fun `잘못된 문자열 테스트`() {
+    fun `빈 namespace를 거부한다`() {
         assertFailsWith<IllegalArgumentException> {
-            RegistryId.parse("game")
-        }
-
-        assertFailsWith<IllegalArgumentException> {
-            RegistryId.parse(":items")
-        }
-
-        assertFailsWith<IllegalArgumentException> {
-            RegistryId.parse("game:")
+            RegistryId("", "users")
         }
     }
 
     @Test
-    fun `빈 네임스페이스와 키 테스트`() {
+    fun `빈 key를 거부한다`() {
         assertFailsWith<IllegalArgumentException> {
-            RegistryId("", "items")
-        }
-
-        assertFailsWith<IllegalArgumentException> {
-            RegistryId("game", "")
+            RegistryId("example", "")
         }
     }
 
     @Test
-    fun `RegistryId를 문자열로 변환한다`() {
-        val id = RegistryId("kiwi", "items")
-
-        assertEquals("kiwi:items", id.toString())
-    }
-
-    @Test
-    fun `문자열에서 RegistryId를 파싱한다`() {
-        val id = RegistryId.parse("kiwi:items")
-
-        assertEquals("kiwi", id.namespace)
-        assertEquals("items", id.key)
-    }
-
-    @Test
-    fun `잘못된 RegistryId 형식을 거부한다`() {
+    fun `콜론이 포함된 namespace를 거부한다`() {
         assertFailsWith<IllegalArgumentException> {
-            RegistryId.parse("kiwi")
-        }
-
-        assertFailsWith<IllegalArgumentException> {
-            RegistryId.parse(":items")
-        }
-
-        assertFailsWith<IllegalArgumentException> {
-            RegistryId.parse("kiwi:")
+            RegistryId("example:test", "users")
         }
     }
 
     @Test
-    fun `RegistryId의 namespace와 key가 비어 있으면 안 된다`() {
+    fun `콜론이 포함된 key를 거부한다`() {
         assertFailsWith<IllegalArgumentException> {
-            RegistryId("", "items")
+            RegistryId("example", "test:users")
         }
+    }
 
-        assertFailsWith<IllegalArgumentException> {
-            RegistryId("kiwi", " ")
+    @Test
+    fun `문자열을 RegistryId로 파싱한다`() {
+        val id = RegistryId.parse("example:users")
+
+        assertEquals(
+            RegistryId("example", "users"),
+            id
+        )
+    }
+
+    @Test
+    fun `잘못된 문자열 형식을 거부한다`() {
+        val invalidIds = listOf(
+            "",
+            "example",
+            ":users",
+            "example:",
+            "example:users:extra"
+        )
+
+        invalidIds.forEach { value ->
+            assertFailsWith<IllegalArgumentException> {
+                RegistryId.parse(value)
+            }
         }
+    }
+
+    @Test
+    fun `RegistryId는 파싱 후에도 동등성을 유지한다`() {
+        val original = RegistryId("example", "users")
+        val parsed = RegistryId.parse(original.toString())
+
+        assertEquals(original, parsed)
+        assertEquals(original.hashCode(), parsed.hashCode())
     }
 }

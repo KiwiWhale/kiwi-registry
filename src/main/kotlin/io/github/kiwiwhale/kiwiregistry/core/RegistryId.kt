@@ -1,5 +1,10 @@
 package io.github.kiwiwhale.kiwiregistry.core
 
+/**
+ * Unique registry identifier.
+ *
+ * Format: namespace:key
+ */
 data class RegistryId(
     val namespace: String,
     val key: String
@@ -14,14 +19,13 @@ data class RegistryId(
             "Registry key cannot be blank."
         }
 
-        require(':' !in namespace) {
-            "Registry namespace cannot contain ':'."
-        }
-
-        require(':' !in key) {
-            "Registry key cannot contain ':'."
+        require(':' !in namespace && ':' !in key) {
+            "Registry ID components cannot contain ':'."
         }
     }
+
+    override fun toString(): String =
+        "$namespace:$key"
 
     companion object {
         fun parse(value: String): RegistryId {
@@ -31,6 +35,10 @@ data class RegistryId(
                 "Invalid registry ID '$value'. Expected format: namespace:key."
             }
 
+            require(value.indexOf(':', separator + 1) == -1) {
+                "Invalid registry ID '$value'."
+            }
+
             return RegistryId(
                 value.substring(0, separator),
                 value.substring(separator + 1)
@@ -38,5 +46,4 @@ data class RegistryId(
         }
     }
 
-    override fun toString(): String = "$namespace:$key"
 }

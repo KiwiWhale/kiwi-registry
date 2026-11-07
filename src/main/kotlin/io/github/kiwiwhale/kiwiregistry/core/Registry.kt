@@ -1,20 +1,19 @@
 package io.github.kiwiwhale.kiwiregistry.core
 
-import io.github.kiwiwhale.kiwiregistry.bootstrap.RegistryHolder
+/**
+ * Immutable registry containing key-value entries.
+ */
+interface Registry<K : Any, V : Any> {
 
-interface Registry<K, V> {
-
-    val registryKey: RegistryKey<K, V>
+    val key: RegistryKey<K, V>
 
     val data: Map<K, V>
-
-    val holderData: Map<RegistryHolder, Map<K, V>>
 
     val size: Int
         get() = data.size
 
     val isEmpty: Boolean
-        get() = size == 0
+        get() = data.isEmpty()
 
     val isNotEmpty: Boolean
         get() = !isEmpty
@@ -28,18 +27,19 @@ interface Registry<K, V> {
     operator fun get(key: K): V? =
         data[key]
 
+    operator fun contains(key: K): Boolean =
+        key in data
+
     fun getOrNull(key: K): V? =
         get(key)
 
-    operator fun contains(key: K): Boolean =
-        data.containsKey(key)
+    fun getOrDefault(key: K, default: V): V =
+        get(key) ?: default
 
     fun all(): Map<K, V> =
         data
 
-    fun getHolderData(holder: RegistryHolder): Map<K, V> =
-        holderData[holder] ?: emptyMap()
-
-    fun containsHolder(holder: RegistryHolder): Boolean =
-        holderData.containsKey(holder)
+    fun forEach(action: (K, V) -> Unit) {
+        data.forEach(action)
+    }
 }
