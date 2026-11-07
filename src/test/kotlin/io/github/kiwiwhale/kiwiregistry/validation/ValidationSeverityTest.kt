@@ -1,6 +1,8 @@
 package io.github.kiwiwhale.kiwiregistry.validation
 
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class ValidationSeverityTest {
 

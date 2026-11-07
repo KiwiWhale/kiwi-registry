@@ -2,7 +2,7 @@ package io.github.kiwiwhale.kiwiregistry.internal
 
 import io.github.kiwiwhale.kiwiregistry.core.Registry
 import io.github.kiwiwhale.kiwiregistry.core.RegistryKey
-import java.util.Collections
+import java.util.*
 
 /**
  * Default immutable registry implementation.

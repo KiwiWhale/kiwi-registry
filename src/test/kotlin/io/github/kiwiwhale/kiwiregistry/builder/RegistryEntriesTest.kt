@@ -3,14 +3,9 @@ package io.github.kiwiwhale.kiwiregistry.builder
 import io.github.kiwiwhale.kiwiregistry.USER_REGISTRY
 import io.github.kiwiwhale.kiwiregistry.User
 import io.github.kiwiwhale.kiwiregistry.dsl.registryGraph
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
-import kotlin.test.assertFailsWith
 import io.github.kiwiwhale.kiwiregistry.exception.RegistryBuildException
 import io.github.kiwiwhale.kiwiregistry.exception.RegistryEntryNotFoundException
+import kotlin.test.*
 
 class RegistryEntriesTest {
 

@@ -2,7 +2,6 @@ package io.github.kiwiwhale.kiwiregistry.validation
 
 import io.github.kiwiwhale.kiwiregistry.USER_REGISTRY
 import io.github.kiwiwhale.kiwiregistry.User
-import io.github.kiwiwhale.kiwiregistry.builder.RegistryContributor
 import io.github.kiwiwhale.kiwiregistry.core.RegistryId
 import io.github.kiwiwhale.kiwiregistry.core.registryKey
 import io.github.kiwiwhale.kiwiregistry.dsl.registryGraph

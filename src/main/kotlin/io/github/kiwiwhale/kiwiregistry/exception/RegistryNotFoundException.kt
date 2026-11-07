@@ -1,7 +1,7 @@
 package io.github.kiwiwhale.kiwiregistry.exception
 
-import io.github.kiwiwhale.kiwiregistry.core.RegistryId
 import io.github.kiwiwhale.kiwiregistry.core.RegistryGraph
+import io.github.kiwiwhale.kiwiregistry.core.RegistryId
 
 /**
  * Thrown when a requested registry does not exist in a [RegistryGraph].

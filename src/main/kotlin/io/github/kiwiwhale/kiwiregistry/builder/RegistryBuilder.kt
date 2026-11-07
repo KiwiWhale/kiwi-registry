@@ -10,7 +10,7 @@ import io.github.kiwiwhale.kiwiregistry.exception.RegistryTypeMismatchException
 import io.github.kiwiwhale.kiwiregistry.exception.RegistryValidationException
 import io.github.kiwiwhale.kiwiregistry.internal.DefaultRegistry
 import io.github.kiwiwhale.kiwiregistry.validation.RegistryValidator
-import java.util.Collections
+import java.util.*
 
 /**
  * Mutable builder used to construct an immutable [RegistryGraph].

@@ -4,7 +4,7 @@ import io.github.kiwiwhale.kiwiregistry.exception.RegistryBuildException
 import io.github.kiwiwhale.kiwiregistry.exception.RegistryNotFoundException
 import io.github.kiwiwhale.kiwiregistry.exception.RegistryTypeMismatchException
 import io.github.kiwiwhale.kiwiregistry.internal.DefaultRegistry
-import java.util.Collections
+import java.util.*
 
 /**
  * Immutable collection of registries.

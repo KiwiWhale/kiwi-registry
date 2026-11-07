@@ -1,6 +1,6 @@
 package io.github.kiwiwhale.kiwiregistry.validation
 
-import java.util.Collections
+import java.util.*
 
 /**
  * Immutable result of registry validation.
