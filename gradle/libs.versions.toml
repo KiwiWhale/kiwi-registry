@@ -1,0 +1,9 @@
+[versions]
+kotlin = "2.4.21"
+dokka = "2.3.0"
+doenv = "4.0.0"
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
+doenv = { id = "co.uzzu.dotenv.gradle", version.ref = "doenv"}

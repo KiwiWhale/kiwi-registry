@@ -1,12 +1,12 @@
 plugins {
-    kotlin("jvm") version "2.4.21"
-    id("co.uzzu.dotenv.gradle") version "4.0.0"
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.doenv)
+    alias(libs.plugins.dokka)
     `maven-publish`
-//    id("org.jetbrains.dokka") version "2.2.0"
 }
 
 group = "io.github.kiwiwhale.kiwiregistry"
-version = "1.2.2-SNAPSHOT"
+version = "2.0.0"
 
 repositories {
     mavenCentral()
@@ -24,15 +24,15 @@ tasks.test {
     useJUnitPlatform()
 }
 
-//dokka {
-//    dokkaPublications.html {
-//        moduleName.set("KiwiRegistry")
-//
-//        pluginsConfiguration.html {
-//            footerMessage.set("(c) KiwiWhale")
-//        }
-//    }
-//}
+dokka {
+    dokkaPublications.html {
+        moduleName.set("KiwiRegistry")
+
+        pluginsConfiguration.html {
+            footerMessage.set("(c) KiwiWhale")
+        }
+    }
+}
 
 val mavenUsername = if (env.isPresent("MAVEN_USERNAME")) env.fetch("MAVEN_USERNAME") else ""
 val mavenPassword = if (env.isPresent("MAVEN_PASSWORD")) env.fetch("MAVEN_PASSWORD") else ""

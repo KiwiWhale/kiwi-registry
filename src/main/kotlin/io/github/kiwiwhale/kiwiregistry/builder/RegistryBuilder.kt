@@ -9,11 +9,15 @@ import io.github.kiwiwhale.kiwiregistry.exception.RegistryTypeMismatchException
 import io.github.kiwiwhale.kiwiregistry.internal.DefaultRegistry
 
 /**
- * Mutable builder used to construct an immutable RegistryGraph.
+ * Mutable builder used to construct an immutable [RegistryGraph].
+ *
+ * Registry modifications are performed transactionally.
+ * Failed registry configurations and contributors do not commit their changes.
  *
  * This builder is not thread-safe.
+ * All operations must be performed from a single thread.
  *
- * All configuration must be performed from a single thread.
+ * A successful [build] permanently closes this builder.
  */
 class RegistryBuilder internal constructor() {
 
@@ -92,8 +96,25 @@ class RegistryBuilder internal constructor() {
     /**
      * Executes a contributor as an isolated transaction.
      *
-     * Registry changes are rolled back if the block fails.
+     * All registry changes made during the block are committed
+     * only if the block completes successfully.
+     *
+     * A failed contributor is rolled back completely, and its ID
+     * remains available for future use.
+     *
      * External side effects are not rolled back.
+     *
+     * Nested contributors and execution inside registry blocks
+     * are not supported.
+     *
+     * @param id Unique contributor identifier.
+     * @param block Configuration to execute.
+     *
+     * @throws IllegalArgumentException If the ID is blank or contains
+     * surrounding whitespace.
+     * @throws IllegalStateException If the builder is not open,
+     * another contributor is executing, or a registry block is active.
+     * @throws IllegalStateException If the contributor ID is duplicated.
      */
     fun contributor(
         id: String,
@@ -103,6 +124,10 @@ class RegistryBuilder internal constructor() {
 
         require(id.isNotBlank()) {
             "Contributor ID cannot be blank."
+        }
+
+        require(id == id.trim()) {
+            "Contributor ID cannot contain surrounding whitespace."
         }
 
         check(!activeRegistryBlock) {
@@ -134,6 +159,14 @@ class RegistryBuilder internal constructor() {
         }
     }
 
+    /**
+     * Applies a reusable [RegistryContributor].
+     *
+     * The contributor is executed using the same transactional
+     * behavior as [contributor].
+     *
+     * @param contributor Contributor to apply.
+     */
     fun contribute(contributor: RegistryContributor) {
         checkOpen()
         contributor.applyTo(this)
@@ -142,7 +175,23 @@ class RegistryBuilder internal constructor() {
     /**
      * Configures entries for a registry.
      *
-     * Changes are committed only after successful completion.
+     * Existing entries are preserved.
+     * New entries are committed only after successful completion
+     * of the configuration block.
+     *
+     * If the block fails, its changes are discarded.
+     *
+     * Registry blocks cannot be nested.
+     *
+     * @param key Typed identifier of the target registry.
+     * @param block Entry configuration.
+     *
+     * @throws IllegalStateException If the builder is not open
+     * or another registry block is executing.
+     * @throws RegistryTypeMismatchException If the registry ID
+     * already exists with incompatible key or value types.
+     * @throws RegistryBuildException If an entry configuration fails
+     * due to a registry-specific build error.
      */
     fun <K : Any, V : Any> registry(
         key: RegistryKey<K, V>,
@@ -188,10 +237,22 @@ class RegistryBuilder internal constructor() {
     }
 
     /**
-     * Builds an immutable RegistryGraph.
+     * Builds an immutable [RegistryGraph] from the configured registries.
      *
-     * Successful builds permanently close this builder.
-     * Failed builds leave it open.
+     * The resulting graph contains independent snapshots of the
+     * configured registry entries.
+     *
+     * A successful build permanently closes this builder.
+     * If building fails, the builder remains open and can be used again.
+     *
+     * Building is not allowed while a contributor or registry block
+     * is executing.
+     *
+     * @return Immutable registry graph.
+     *
+     * @throws IllegalStateException If the builder is already building,
+     * has already been built, or a configuration block is executing.
+     * @throws RegistryBuildException If graph construction fails.
      */
     @Suppress("UNCHECKED_CAST")
     fun build(): RegistryGraph {
@@ -236,12 +297,23 @@ class RegistryBuilder internal constructor() {
         }
     }
 
+    /**
+     * Whether this builder has successfully built a graph.
+     *
+     * Once true, the builder cannot be used for further configuration.
+     */
     val isBuilt: Boolean
         get() = state == State.BUILT
 
+    /**
+     * Number of registries currently configured.
+     */
     val registryCount: Int
         get() = registries.size
 
+    /**
+     * Number of successfully executed contributors.
+     */
     val contributorCount: Int
         get() = contributorIds.size
 }
