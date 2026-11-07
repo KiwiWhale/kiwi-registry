@@ -1,31 +1,32 @@
 package io.github.kiwiwhale.kiwiregistry.core
 
+import io.github.kiwiwhale.kiwiregistry.exception.RegistryEntryNotFoundException
+
 /**
- * Immutable registry containing key-value entries.
+ * Immutable registry containing typed key-value entries.
  *
- * The registry structure cannot be modified after construction.
- * However, immutability of individual keys and values depends
- * on their respective implementations.
+ * Entries are exposed through a read-only map.
+ * The registry preserves the insertion order of its entries.
  *
- * Implementations must expose an immutable map through [data].
- *
- * @param K Registry key type.
- * @param V Registry value type.
+ * @param K Entry key type.
+ * @param V Entry value type.
  */
 interface Registry<K : Any, V : Any> {
 
     /**
-     * Typed identifier of this registry.
+     * Typed key identifying this registry.
      */
     val key: RegistryKey<K, V>
 
     /**
-     * Immutable map containing all registry entries.
+     * All registered entries.
+     *
+     * Implementations must expose a read-only map.
      */
     val data: Map<K, V>
 
     /**
-     * Number of entries in this registry.
+     * Number of registered entries.
      */
     val size: Int
         get() = data.size
@@ -43,28 +44,28 @@ interface Registry<K : Any, V : Any> {
         get() = !isEmpty
 
     /**
-     * All keys contained in this registry.
+     * All registered entry keys.
      */
     val keys: Set<K>
         get() = data.keys
 
     /**
-     * All values contained in this registry.
+     * All registered entry values.
      */
     val values: Collection<V>
         get() = data.values
 
     /**
-     * Returns the value associated with [key], or null if absent.
+     * Returns the value associated with the specified key.
      *
      * @param key Entry key.
-     * @return Associated value, or null.
+     * @return Associated value, or null if absent.
      */
     operator fun get(key: K): V? =
         data[key]
 
     /**
-     * Checks whether [key] exists in this registry.
+     * Checks whether the specified key exists.
      *
      * @param key Entry key.
      * @return True if the key exists.
@@ -73,39 +74,64 @@ interface Registry<K : Any, V : Any> {
         key in data
 
     /**
-     * Returns the value associated with [key], or null if absent.
+     * Checks whether the specified value exists.
      *
-     * This is equivalent to the indexed [get] operator.
+     * @param value Entry value.
+     * @return True if the value exists.
+     */
+    fun containsValue(value: V): Boolean =
+        data.containsValue(value)
+
+    /**
+     * Returns the value associated with the specified key.
      *
      * @param key Entry key.
-     * @return Associated value, or null.
+     * @return Associated value.
+     * @throws RegistryEntryNotFoundException If the key does not exist.
+     */
+    fun getOrThrow(key: K): V =
+        get(key) ?: throw RegistryEntryNotFoundException(
+            this.key.id,
+            key
+        )
+
+    /**
+     * Returns the value associated with the specified key,
+     * or null if absent.
+     *
+     * This is equivalent to [get].
+     *
+     * @param key Entry key.
+     * @return Associated value, or null if absent.
      */
     fun getOrNull(key: K): V? =
         get(key)
 
     /**
-     * Returns the value associated with [key], or [default]
-     * if the key is absent.
+     * Returns the value associated with the specified key,
+     * or the specified default value if absent.
      *
      * @param key Entry key.
-     * @param default Value returned when the key is absent.
-     * @return Associated value or [default].
+     * @param default Default value.
+     * @return Associated value or default value.
      */
     fun getOrDefault(key: K, default: V): V =
         get(key) ?: default
 
     /**
-     * Returns all registry entries as an immutable map.
+     * Returns all registered entries.
      *
-     * @return Registry data.
+     * @return Read-only map of registered entries.
      */
     fun all(): Map<K, V> =
         data
 
     /**
-     * Performs [action] for each registry entry in iteration order.
+     * Performs the specified action for each entry.
      *
-     * @param action Operation to perform for each key-value pair.
+     * Entries are visited in insertion order.
+     *
+     * @param action Operation performed for each key-value pair.
      */
     fun forEach(action: (K, V) -> Unit) {
         data.forEach(action)

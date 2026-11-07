@@ -12,10 +12,12 @@ import java.util.Collections
  * Each registry is copied into an independent snapshot during
  * construction.
  *
- * The graph structure and registry maps cannot be modified
+ * The graph structure and registry entry maps cannot be modified
  * after construction.
  *
  * Individual key and value objects are not deep-copied.
+ *
+ * Registry insertion order is preserved.
  *
  * @param registries Registries used to construct this graph.
  */
@@ -25,25 +27,30 @@ class RegistryGraph internal constructor(
 
     private val registries: Map<RegistryId, Registry<*, *>> =
         Collections.unmodifiableMap(
-            createSnapshots(registries)
+            snapshotRegistries(registries)
         )
 
-    private fun createSnapshots(
+    /**
+     * Creates immutable snapshots of the supplied registries.
+     *
+     * @param source Source registries.
+     * @return Ordered map containing immutable registry snapshots.
+     * @throws IllegalArgumentException If a registry ID does not match its key.
+     * @throws RegistryBuildException If a registry cannot be copied.
+     */
+    private fun snapshotRegistries(
         source: Map<RegistryId, Registry<*, *>>
-    ): LinkedHashMap<RegistryId, Registry<*, *>> {
-        val snapshots = LinkedHashMap<RegistryId, Registry<*, *>>()
+    ): LinkedHashMap<RegistryId, Registry<*, *>> =
+        LinkedHashMap<RegistryId, Registry<*, *>>().apply {
+            for ((id, registry) in source) {
+                require(id == registry.key.id) {
+                    "Registry ID mismatch: map key '$id' " +
+                            "does not match registry key '${registry.key.id}'."
+                }
 
-        for ((id, registry) in source) {
-            require(id == registry.key.id) {
-                "Registry ID mismatch: map key '$id' " +
-                        "does not match registry key '${registry.key.id}'."
+                put(id, snapshot(registry))
             }
-
-            snapshots[id] = snapshot(registry)
         }
-
-        return snapshots
-    }
 
     /**
      * Number of registries contained in this graph.
@@ -64,13 +71,19 @@ class RegistryGraph internal constructor(
         get() = registries.isNotEmpty()
 
     /**
-     * IDs of all registries contained in this graph.
+     * Registry IDs in insertion order.
      */
-    val keys: Set<RegistryId>
+    val registryIds: Set<RegistryId>
         get() = registries.keys
 
     /**
-     * Checks whether a registry with the specified [id] exists.
+     * Alias for [registryIds].
+     */
+    val keys: Set<RegistryId>
+        get() = registryIds
+
+    /**
+     * Checks whether a registry with the specified ID exists.
      *
      * @param id Registry identifier.
      * @return True if the registry exists.
@@ -79,10 +92,10 @@ class RegistryGraph internal constructor(
         id in registries
 
     /**
-     * Checks whether a registry with the specified [key]'s ID exists.
+     * Checks whether a registry with the specified key's ID exists.
      *
      * This operation checks only the registry ID.
-     * It does not verify runtime type compatibility.
+     * Runtime type compatibility is not verified.
      *
      * @param key Typed registry identifier.
      * @return True if a registry with the same ID exists.
@@ -91,15 +104,12 @@ class RegistryGraph internal constructor(
         key.id in registries
 
     /**
-     * Returns the registry associated with [key].
-     *
-     * Both the registry ID and its runtime types must match.
+     * Returns the registry associated with the specified key.
      *
      * @param key Typed registry identifier.
-     * @return Matching registry.
-     *
+     * @return Associated registry.
      * @throws RegistryNotFoundException If the registry does not exist.
-     * @throws RegistryTypeMismatchException If runtime types do not match.
+     * @throws RegistryTypeMismatchException If its types do not match.
      */
     @Suppress("UNCHECKED_CAST")
     operator fun <K : Any, V : Any> get(
@@ -116,55 +126,36 @@ class RegistryGraph internal constructor(
     }
 
     /**
-     * Returns the registry associated with [key], or null if absent.
+     * Returns a registry by ID.
      *
-     * Type mismatches are reported as exceptions rather than
-     * being treated as missing registries.
+     * @param id Registry identifier.
+     * @return Associated registry, or null if absent.
+     */
+    fun getOrNull(id: RegistryId): Registry<*, *>? =
+        registries[id]
+
+    /**
+     * Returns a registry by its typed key.
      *
      * @param key Typed registry identifier.
-     * @return Matching registry, or null if absent.
-     * @throws RegistryTypeMismatchException If runtime types do not match.
+     * @return Associated registry, or null if absent.
+     * @throws RegistryTypeMismatchException If its types do not match.
      */
     fun <K : Any, V : Any> getOrNull(
         key: RegistryKey<K, V>
     ): Registry<K, V>? =
-        if (key.id in registries) get(key) else null
+        registries[key.id]?.let {
+            get(key)
+        }
 
     /**
-     * Returns the registry associated with [key], or [default]
-     * if the registry does not exist.
+     * Finds a registry using its typed key.
      *
-     * Type mismatches are reported as exceptions.
+     * This is an alias for [getOrNull].
      *
      * @param key Typed registry identifier.
-     * @param default Registry returned when the requested ID is absent.
-     * @return Matching registry or [default].
-     * @throws RegistryTypeMismatchException If runtime types do not match.
-     */
-    fun <K : Any, V : Any> getOrDefault(
-        key: RegistryKey<K, V>,
-        default: Registry<K, V>
-    ): Registry<K, V> =
-        getOrNull(key) ?: default
-
-    /**
-     * Finds a registry by its ID without requiring runtime type information.
-     *
-     * @param id Registry identifier.
-     * @return Matching registry, or null if absent.
-     */
-    fun findById(id: RegistryId): Registry<*, *>? =
-        registries[id]
-
-    /**
-     * Finds a registry associated with [key].
-     *
-     * Returns null only when the registry does not exist.
-     * Type mismatches are reported as exceptions.
-     *
-     * @param key Typed registry identifier.
-     * @return Matching registry, or null if absent.
-     * @throws RegistryTypeMismatchException If runtime types do not match.
+     * @return Associated registry, or null if absent.
+     * @throws RegistryTypeMismatchException If its types do not match.
      */
     fun <K : Any, V : Any> find(
         key: RegistryKey<K, V>
@@ -172,32 +163,45 @@ class RegistryGraph internal constructor(
         getOrNull(key)
 
     /**
+     * Performs the specified action for each registry.
+     *
+     * Registries are visited in insertion order.
+     *
+     * @param action Operation performed for each registry.
+     */
+    fun forEach(
+        action: (RegistryId, Registry<*, *>) -> Unit
+    ) {
+        registries.forEach(action)
+    }
+
+    /**
      * Returns all registries in insertion order.
      *
-     * The returned collection cannot be modified.
-     *
-     * @return Immutable collection of registries.
+     * @return Read-only collection of registries.
      */
     fun all(): Collection<Registry<*, *>> =
         registries.values
 
     /**
-     * Performs [action] for each registry in insertion order.
+     * Creates an immutable snapshot of the specified registry.
      *
-     * @param action Operation receiving each registry ID and registry.
+     * Entry keys and values are validated against the registry's
+     * declared runtime types.
+     *
+     * @param registry Source registry.
+     * @return Immutable registry snapshot.
+     * @throws RegistryBuildException If snapshot creation fails.
      */
-    fun forEach(action: (RegistryId, Registry<*, *>) -> Unit) {
-        registries.forEach(action)
-    }
-
     @Suppress("UNCHECKED_CAST")
     private fun snapshot(
         registry: Registry<*, *>
     ): Registry<*, *> {
         val key = registry.key as RegistryKey<Any, Any>
-        val source = LinkedHashMap<Any, Any>()
 
         try {
+            val entries = LinkedHashMap<Any, Any>()
+
             for ((entryKey, value) in registry.data) {
                 require(key.key.isInstance(entryKey)) {
                     "Invalid key type in registry '${key.id}'."
@@ -207,8 +211,10 @@ class RegistryGraph internal constructor(
                     "Invalid value type in registry '${key.id}'."
                 }
 
-                source[entryKey] = value
+                entries[entryKey] = value
             }
+
+            return DefaultRegistry(key, entries)
         } catch (exception: Exception) {
             if (exception is RegistryBuildException) {
                 throw exception
@@ -219,8 +225,6 @@ class RegistryGraph internal constructor(
                 exception
             )
         }
-
-        return DefaultRegistry(key, source)
     }
 
     companion object {
@@ -229,5 +233,81 @@ class RegistryGraph internal constructor(
          * Shared empty registry graph.
          */
         val EMPTY = RegistryGraph(emptyMap())
+
+        private class MergedRegistry(
+            val key: RegistryKey<*, *>,
+            val entries: LinkedHashMap<Any, Any>
+        )
+
+        /**
+         * Merges multiple registry graphs into a new graph.
+         *
+         * Registries with the same ID must have compatible runtime types.
+         *
+         * When duplicate entry keys are encountered, values from
+         * later graphs replace values from earlier graphs.
+         *
+         * Registry and entry insertion order is preserved.
+         * Existing graphs are never modified.
+         *
+         * @param graphs Registry graphs to merge, in merge order.
+         * @return A new merged registry graph, or [EMPTY] if no graphs are supplied.
+         * @throws RegistryTypeMismatchException If registries with
+         * the same ID have incompatible types.
+         * @throws RegistryBuildException If the merged graph cannot
+         * be constructed.
+         */
+        fun merge(
+            vararg graphs: RegistryGraph
+        ): RegistryGraph {
+            if (graphs.isEmpty()) {
+                return EMPTY
+            }
+
+            val merged = LinkedHashMap<RegistryId, MergedRegistry>()
+
+            for (graph in graphs) {
+                for ((id, registry) in graph.registries) {
+                    val existing = merged[id]
+
+                    if (existing == null) {
+                        @Suppress("UNCHECKED_CAST")
+                        val entries = LinkedHashMap(
+                            registry.data as Map<Any, Any>
+                        )
+
+                        merged[id] = MergedRegistry(
+                            key = registry.key,
+                            entries = entries
+                        )
+
+                        continue
+                    }
+
+                    if (!existing.key.hasSameTypes(registry.key)) {
+                        throw RegistryTypeMismatchException(id)
+                    }
+
+                    @Suppress("UNCHECKED_CAST")
+                    existing.entries.putAll(
+                        registry.data as Map<Any, Any>
+                    )
+                }
+            }
+
+            val result = LinkedHashMap<RegistryId, Registry<*, *>>()
+
+            for ((id, mergedRegistry) in merged) {
+                @Suppress("UNCHECKED_CAST")
+                val key = mergedRegistry.key as RegistryKey<Any, Any>
+
+                result[id] = DefaultRegistry(
+                    key = key,
+                    source = mergedRegistry.entries
+                )
+            }
+
+            return RegistryGraph(result)
+        }
     }
 }

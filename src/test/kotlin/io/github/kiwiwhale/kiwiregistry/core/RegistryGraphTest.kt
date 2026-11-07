@@ -87,4 +87,120 @@ class RegistryGraphTest {
         assertTrue(RegistryGraph.EMPTY.isEmpty)
         assertEquals(0, RegistryGraph.EMPTY.size)
     }
+
+    @Test
+    fun `여러 RegistryGraph를 병합한다`() {
+        val first = registryGraph {
+            registry(USER_REGISTRY) {
+                add("admin", User("Admin", 100))
+            }
+        }
+
+        val second = registryGraph {
+            registry(PRODUCT_REGISTRY) {}
+        }
+
+        val merged = RegistryGraph.merge(first, second)
+
+        assertEquals(2, merged.size)
+        assertTrue(USER_REGISTRY in merged)
+        assertTrue(PRODUCT_REGISTRY in merged)
+    }
+
+    @Test
+    fun `동일한 Registry의 Entry를 병합한다`() {
+        val first = registryGraph {
+            registry(USER_REGISTRY) {
+                add("admin", User("Admin", 100))
+                add("guest", User("Guest", 10))
+            }
+        }
+
+        val second = registryGraph {
+            registry(USER_REGISTRY) {
+                add("moderator", User("Moderator", 50))
+            }
+        }
+
+        val merged = RegistryGraph.merge(first, second)
+
+        val registry = merged[USER_REGISTRY]
+
+        assertEquals(3, registry.size)
+        assertEquals(
+            listOf("admin", "guest", "moderator"),
+            registry.keys.toList()
+        )
+    }
+
+    @Test
+    fun `중복 Entry는 나중에 전달된 Graph의 값으로 교체한다`() {
+        val first = registryGraph {
+            registry(USER_REGISTRY) {
+                add("admin", User("Admin", 100))
+            }
+        }
+
+        val second = registryGraph {
+            registry(USER_REGISTRY) {
+                add("admin", User("Updated Admin", 200))
+            }
+        }
+
+        val merged = RegistryGraph.merge(first, second)
+
+        assertEquals(
+            User("Updated Admin", 200),
+            merged[USER_REGISTRY]["admin"]
+        )
+    }
+
+    @Test
+    fun `병합해도 원본 RegistryGraph는 변경되지 않는다`() {
+        val first = registryGraph {
+            registry(USER_REGISTRY) {
+                add("admin", User("Admin", 100))
+            }
+        }
+
+        val second = registryGraph {
+            registry(USER_REGISTRY) {
+                add("guest", User("Guest", 10))
+            }
+        }
+
+        RegistryGraph.merge(first, second)
+
+        assertEquals(1, first[USER_REGISTRY].size)
+        assertEquals(1, second[USER_REGISTRY].size)
+
+        assertTrue("guest" !in first[USER_REGISTRY])
+        assertTrue("admin" !in second[USER_REGISTRY])
+    }
+
+    @Test
+    fun `인자가 없는 병합은 EMPTY를 반환한다`() {
+        assertSame(
+            RegistryGraph.EMPTY,
+            RegistryGraph.merge()
+        )
+    }
+
+    @Test
+    fun `병합된 RegistryGraph도 불변성을 유지한다`() {
+        val first = registryGraph {
+            registry(USER_REGISTRY) {
+                add("admin", User("Admin", 100))
+            }
+        }
+
+        val merged = RegistryGraph.merge(first)
+
+        @Suppress("UNCHECKED_CAST")
+        val mutable = merged[USER_REGISTRY].data as MutableMap<String, User>
+
+        assertFailsWith<UnsupportedOperationException> {
+            mutable["guest"] = User("Guest", 10)
+        }
+    }
 }

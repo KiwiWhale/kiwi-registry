@@ -13,6 +13,8 @@ import io.github.kiwiwhale.kiwiregistry.core.RegistryKey
  * applying reusable contributors, and inspecting configuration state.
  *
  * Nested scopes are restricted by [RegistryDslMarker].
+ *
+ * @property builder Internal builder responsible for registry configuration.
  */
 @RegistryDslMarker
 class RegistryScope internal constructor(
@@ -21,6 +23,9 @@ class RegistryScope internal constructor(
 
     /**
      * Configures entries for the specified registry.
+     *
+     * Existing entries are preserved, and new entries are committed
+     * only after successful completion of the configuration block.
      *
      * @param key Typed registry identifier.
      * @param block Entry configuration.
@@ -55,9 +60,7 @@ class RegistryScope internal constructor(
      *
      * @param contributor Contributor to apply.
      */
-    fun contribute(
-        contributor: RegistryContributor
-    ) {
+    fun contribute(contributor: RegistryContributor) {
         builder.contribute(contributor)
     }
 
@@ -73,7 +76,8 @@ class RegistryScope internal constructor(
     /**
      * Checks whether a registry with the specified key's ID exists.
      *
-     * Runtime type compatibility is not checked.
+     * This operation checks only the ID and does not verify
+     * runtime type compatibility.
      *
      * @param key Typed registry identifier.
      * @return True if the registry exists.
@@ -93,11 +97,43 @@ class RegistryScope internal constructor(
     /**
      * Returns the number of entries in the specified registry.
      *
+     * The runtime types of the supplied key must match the
+     * registered registry.
+     *
      * @param key Typed registry identifier.
      * @return Entry count, or null if the registry does not exist.
      */
     fun getEntryCount(key: RegistryKey<*, *>): Int? =
         builder.getEntryCount(key)
+
+    /**
+     * Removes the specified registry.
+     *
+     * @param key Typed registry identifier.
+     * @return True if a registry was removed, or false if absent.
+     */
+    fun removeRegistry(key: RegistryKey<*, *>): Boolean =
+        builder.removeRegistry(key)
+
+    /**
+     * Removes all entries from the specified registry.
+     *
+     * The registry itself remains registered.
+     *
+     * @param key Typed registry identifier.
+     * @return Number of removed entries, or null if absent.
+     */
+    fun clearRegistry(key: RegistryKey<*, *>): Int? =
+        builder.clearRegistry(key)
+
+    /**
+     * Checks whether a contributor has been successfully executed.
+     *
+     * @param id Contributor identifier.
+     * @return True if the contributor was successfully executed.
+     */
+    fun hasContributor(id: String): Boolean =
+        builder.hasContributor(id)
 
     /**
      * Number of registries currently configured.
@@ -113,6 +149,8 @@ class RegistryScope internal constructor(
 
     /**
      * IDs of successfully executed contributors in execution order.
+     *
+     * Returns an immutable snapshot.
      */
     val contributorIds: Set<String>
         get() = builder.contributorIds

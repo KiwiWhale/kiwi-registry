@@ -138,5 +138,5 @@ class RegistryProviderTest {
 }
 
 private object RegistryGraphFixture {
-    fun empty() = io.github.kiwiwhale.kiwiregistry.core.RegistryGraph.EMPTY
+    fun empty() = RegistryGraph.EMPTY
 }
