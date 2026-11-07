@@ -213,8 +213,8 @@ class RegistryGraphTest {
     @Test
     fun `인자가 없는 병합은 EMPTY를 반환한다`() {
         assertSame(
-            RegistryGraph.EMPTY,
-            RegistryGraph.merge()
+            RegistryGraph.merge(),
+            RegistryGraph.EMPTY
         )
     }
 
