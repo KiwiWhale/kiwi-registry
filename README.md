@@ -1,34 +1,40 @@
-# kiwi-registry
+# 🥝 kiwi-registry
 
 ![GitHub License](https://img.shields.io/github/license/KiwiWhale/kiwi-registry?style=flat-square) 
 ![Maven Repository](https://img.shields.io/badge/Maven-Reposilite-blue?style=flat-square)
 
-**A lightweight and extensible registry library for Kotlin.**
+**A lightweight, type-safe, and immutable registry library for Kotlin.**
 
-kiwi-registry is a lightweight registry library for managing and accessing typed entries in Kotlin applications.
+kiwi-registry is a Kotlin-first library for defining, building, and managing typed registries.
 
-It provides a type-safe API for defining registries and organizing entries, with support for simple and grouped registry structures.
+It provides a simple API for organizing entries into namespaces, composing registries through contributors, 
+and accessing immutable registry collections through a unified registry graph.
 
 > [!WARNING]
 > Early development. APIs and implementation are subject to change.
 
 ## Why kiwi-registry?
 
-kiwi-registry aims to provide a simple and flexible way to manage registries in Kotlin applications.
+kiwi-registry focuses on providing a predictable and type-safe registry system without unnecessary complexity.
 
-- **Kotlin-first:** Designed with Kotlin's type system and language features.
-- **Type-safe:** Define registries using strongly typed registry keys.
-- **Flexible:** Support both simple and grouped registry structures.
-- **Extensible:** Build custom registry implementations around a consistent API.
+- **Kotlin-first:** Built around Kotlin's type system, generics, and DSL capabilities.
+- **Type-safe:** Registry keys preserve key and value type information.
+- **Immutable:** Built registries expose read-only snapshots of their entries.
+- **Composable:** Contributors allow independent components to contribute registry entries.
+- **Thread-safe provider:** Registry graphs can be replaced and updated atomically.
 - **Lightweight:** Minimal dependencies and a straightforward API.
 
 ## Features
 
-- Type-safe registry keys
-- Simple registry structures
-- Grouped registry structures
+- Typed registry keys with generic type information
 - Namespace-based registry identifiers
-- Kotlin-first API
+- Immutable registries and registry graphs
+- DSL-based registry construction
+- Contributor-based registry composition
+- Duplicate entry detection
+- Registry type mismatch detection
+- Atomic registry replacement and updates
+- Ordered entry storage
 
 ## Installation
 
@@ -40,7 +46,7 @@ repositories {
 }
 
 dependencies {
-    implementation("io.github.kiwiwhale:kiwi-registry:1.2.1")
+    implementation("io.github.kiwiwhale:kiwi-registry:2.0.0")
 }
 ```
 
@@ -48,55 +54,43 @@ dependencies {
 
 ### Create a Registry
 
+Define a registry key with its namespace, name, and types.
+
 ```kotlin
-val key = RegistryKey.of<String>(
-    "example",
-    "services"
+data class User(
+    val name: String,
+    val level: Int
 )
 
-val registry = MutableRegistry.create(key)
-
-registry.register("database", "MySQL")
-registry.register("cache", "Redis")
-
-println(registry["database"])
+val USER_REGISTRY = registryKey<String, User>(
+    "example",
+    "users"
+)
 ```
 
-### Freeze and Thaw
+### Build a Registry
+
+Use `registryGraph` to register entries and build an immutable registry graph.
 
 ```kotlin
-val frozen = registry.freeze()
-val mutable = frozen.thaw()
-
-mutable.register("queue", "RabbitMQ")
-```
-
-### Bootstrap
-
-```kotlin
-val bootstrap = Bootstrap.create {
-    registry(key) {
-        add("database", "MySQL")
-        add("cache", "Redis")
+val graph = registryGraph {
+    registry(USER_REGISTRY) {
+        add("admin", User("Administrator", 100))
+        add("guest", User("Guest", 1))
     }
 }
-
-val services = bootstrap[key]
-println(services["database"])
 ```
 
-`Bootstrap` creates immutable registries, while `MutableRegistry` supports runtime modifications.
+### Access Entries
 
-## Registry Keys
+Retrieve the registry and access its entries.
 
-kiwi-registry provides different registry key types depending on the structure of your data.
+```kotlin
+val users = graph[USER_REGISTRY]
 
-| Type                                   | Description                         |
-|----------------------------------------|-------------------------------------|
-| `RegistryKey<K, V>`                    | Common registry key interface       |
-| `SimpleRegistryKey<K, V>`              | Simple registry key implementation  |
-| `GroupedRegistryKey<Id, Group, Value>` | Registry key for grouped entries    |
-| `RegistryId`                           | Namespace-based registry identifier |
+println(users["admin"]) // User(name=Administrator, level=100)
+println(users.size) // 2
+```
 
 ## Building
 
@@ -122,12 +116,6 @@ Run tests:
 ## Documentation
 
 API documentation is available through GitHub Pages.
-
-## Project Status
-
-kiwi-registry is currently under active development.
-
-APIs and implementation details are subject to change as the project evolves.
 
 ## License
 
