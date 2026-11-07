@@ -7,6 +7,7 @@ import io.github.kiwiwhale.kiwiregistry.core.RegistryKey
 import io.github.kiwiwhale.kiwiregistry.exception.RegistryBuildException
 import io.github.kiwiwhale.kiwiregistry.exception.RegistryTypeMismatchException
 import io.github.kiwiwhale.kiwiregistry.internal.DefaultRegistry
+import java.util.Collections
 
 /**
  * Mutable builder used to construct an immutable [RegistryGraph].
@@ -40,7 +41,7 @@ class RegistryBuilder internal constructor() {
     private var registries =
         LinkedHashMap<RegistryId, MutableEntries>()
 
-    private val contributorIds =
+    private val executedContributorIds =
         LinkedHashSet<String>()
 
     private var currentContributor: String? = null
@@ -104,17 +105,8 @@ class RegistryBuilder internal constructor() {
      *
      * External side effects are not rolled back.
      *
-     * Nested contributors and execution inside registry blocks
-     * are not supported.
-     *
      * @param id Unique contributor identifier.
      * @param block Configuration to execute.
-     *
-     * @throws IllegalArgumentException If the ID is blank or contains
-     * surrounding whitespace.
-     * @throws IllegalStateException If the builder is not open,
-     * another contributor is executing, or a registry block is active.
-     * @throws IllegalStateException If the contributor ID is duplicated.
      */
     fun contributor(
         id: String,
@@ -138,7 +130,7 @@ class RegistryBuilder internal constructor() {
             "Nested contributors are not supported."
         }
 
-        check(id !in contributorIds) {
+        check(id !in executedContributorIds) {
             "Duplicate contributor: '$id'."
         }
 
@@ -150,7 +142,7 @@ class RegistryBuilder internal constructor() {
 
         try {
             block()
-            contributorIds.add(id)
+            executedContributorIds.add(id)
         } catch (exception: Throwable) {
             registries = previousRegistries
             throw exception
@@ -161,9 +153,6 @@ class RegistryBuilder internal constructor() {
 
     /**
      * Applies a reusable [RegistryContributor].
-     *
-     * The contributor is executed using the same transactional
-     * behavior as [contributor].
      *
      * @param contributor Contributor to apply.
      */
@@ -179,19 +168,8 @@ class RegistryBuilder internal constructor() {
      * New entries are committed only after successful completion
      * of the configuration block.
      *
-     * If the block fails, its changes are discarded.
-     *
-     * Registry blocks cannot be nested.
-     *
      * @param key Typed identifier of the target registry.
      * @param block Entry configuration.
-     *
-     * @throws IllegalStateException If the builder is not open
-     * or another registry block is executing.
-     * @throws RegistryTypeMismatchException If the registry ID
-     * already exists with incompatible key or value types.
-     * @throws RegistryBuildException If an entry configuration fails
-     * due to a registry-specific build error.
      */
     fun <K : Any, V : Any> registry(
         key: RegistryKey<K, V>,
@@ -237,22 +215,60 @@ class RegistryBuilder internal constructor() {
     }
 
     /**
+     * Checks whether a registry with the specified ID exists.
+     *
+     * @param id Registry identifier.
+     * @return True if the registry exists.
+     */
+    fun containsRegistry(id: RegistryId): Boolean =
+        id in registries
+
+    /**
+     * Checks whether a registry with the specified key's ID exists.
+     *
+     * This operation checks only the ID and does not verify
+     * runtime type compatibility.
+     *
+     * @param key Typed registry identifier.
+     * @return True if the registry exists.
+     */
+    fun containsRegistry(key: RegistryKey<*, *>): Boolean =
+        key.id in registries
+
+    /**
+     * Returns the number of entries in the specified registry.
+     *
+     * @param id Registry identifier.
+     * @return Entry count, or null if the registry does not exist.
+     */
+    fun getEntryCount(id: RegistryId): Int? =
+        registries[id]?.entries?.size
+
+    /**
+     * Returns the number of entries in the specified registry.
+     *
+     * The runtime types of the supplied key must match the
+     * registered registry.
+     *
+     * @param key Typed registry identifier.
+     * @return Entry count, or null if the registry does not exist.
+     * @throws RegistryTypeMismatchException If runtime types do not match.
+     */
+    fun getEntryCount(key: RegistryKey<*, *>): Int? {
+        val existing = registries[key.id] ?: return null
+
+        validateRegistryKey(existing, key)
+
+        return existing.entries.size
+    }
+
+    /**
      * Builds an immutable [RegistryGraph] from the configured registries.
      *
-     * The resulting graph contains independent snapshots of the
-     * configured registry entries.
-     *
      * A successful build permanently closes this builder.
-     * If building fails, the builder remains open and can be used again.
-     *
-     * Building is not allowed while a contributor or registry block
-     * is executing.
+     * If building fails, the builder remains open.
      *
      * @return Immutable registry graph.
-     *
-     * @throws IllegalStateException If the builder is already building,
-     * has already been built, or a configuration block is executing.
-     * @throws RegistryBuildException If graph construction fails.
      */
     @Suppress("UNCHECKED_CAST")
     fun build(): RegistryGraph {
@@ -299,8 +315,6 @@ class RegistryBuilder internal constructor() {
 
     /**
      * Whether this builder has successfully built a graph.
-     *
-     * Once true, the builder cannot be used for further configuration.
      */
     val isBuilt: Boolean
         get() = state == State.BUILT
@@ -315,5 +329,15 @@ class RegistryBuilder internal constructor() {
      * Number of successfully executed contributors.
      */
     val contributorCount: Int
-        get() = contributorIds.size
+        get() = executedContributorIds.size
+
+    /**
+     * IDs of successfully executed contributors in execution order.
+     *
+     * Returns an immutable snapshot.
+     */
+    val contributorIds: Set<String>
+        get() = Collections.unmodifiableSet(
+            LinkedHashSet(executedContributorIds)
+        )
 }

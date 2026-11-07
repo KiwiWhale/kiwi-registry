@@ -93,16 +93,13 @@ class RegistryGraph internal constructor(
     /**
      * Returns the registry associated with [key].
      *
-     * Both the registry ID and its runtime key and value types
-     * must match.
+     * Both the registry ID and its runtime types must match.
      *
      * @param key Typed registry identifier.
      * @return Matching registry.
      *
-     * @throws RegistryNotFoundException If no registry with the
-     * specified ID exists.
-     * @throws RegistryTypeMismatchException If the registry exists
-     * but has incompatible runtime types.
+     * @throws RegistryNotFoundException If the registry does not exist.
+     * @throws RegistryTypeMismatchException If runtime types do not match.
      */
     @Suppress("UNCHECKED_CAST")
     operator fun <K : Any, V : Any> get(
@@ -119,6 +116,47 @@ class RegistryGraph internal constructor(
     }
 
     /**
+     * Returns the registry associated with [key], or null if absent.
+     *
+     * Type mismatches are reported as exceptions rather than
+     * being treated as missing registries.
+     *
+     * @param key Typed registry identifier.
+     * @return Matching registry, or null if absent.
+     * @throws RegistryTypeMismatchException If runtime types do not match.
+     */
+    fun <K : Any, V : Any> getOrNull(
+        key: RegistryKey<K, V>
+    ): Registry<K, V>? =
+        if (key.id in registries) get(key) else null
+
+    /**
+     * Returns the registry associated with [key], or [default]
+     * if the registry does not exist.
+     *
+     * Type mismatches are reported as exceptions.
+     *
+     * @param key Typed registry identifier.
+     * @param default Registry returned when the requested ID is absent.
+     * @return Matching registry or [default].
+     * @throws RegistryTypeMismatchException If runtime types do not match.
+     */
+    fun <K : Any, V : Any> getOrDefault(
+        key: RegistryKey<K, V>,
+        default: Registry<K, V>
+    ): Registry<K, V> =
+        getOrNull(key) ?: default
+
+    /**
+     * Finds a registry by its ID without requiring runtime type information.
+     *
+     * @param id Registry identifier.
+     * @return Matching registry, or null if absent.
+     */
+    fun findById(id: RegistryId): Registry<*, *>? =
+        registries[id]
+
+    /**
      * Finds a registry associated with [key].
      *
      * Returns null only when the registry does not exist.
@@ -126,14 +164,12 @@ class RegistryGraph internal constructor(
      *
      * @param key Typed registry identifier.
      * @return Matching registry, or null if absent.
-     *
-     * @throws RegistryTypeMismatchException If the registry exists
-     * but has incompatible runtime types.
+     * @throws RegistryTypeMismatchException If runtime types do not match.
      */
     fun <K : Any, V : Any> find(
         key: RegistryKey<K, V>
     ): Registry<K, V>? =
-        if (key.id in registries) get(key) else null
+        getOrNull(key)
 
     /**
      * Returns all registries in insertion order.
@@ -145,13 +181,20 @@ class RegistryGraph internal constructor(
     fun all(): Collection<Registry<*, *>> =
         registries.values
 
+    /**
+     * Performs [action] for each registry in insertion order.
+     *
+     * @param action Operation receiving each registry ID and registry.
+     */
+    fun forEach(action: (RegistryId, Registry<*, *>) -> Unit) {
+        registries.forEach(action)
+    }
+
     @Suppress("UNCHECKED_CAST")
     private fun snapshot(
         registry: Registry<*, *>
     ): Registry<*, *> {
-        val key =
-            registry.key as RegistryKey<Any, Any>
-
+        val key = registry.key as RegistryKey<Any, Any>
         val source = LinkedHashMap<Any, Any>()
 
         try {
