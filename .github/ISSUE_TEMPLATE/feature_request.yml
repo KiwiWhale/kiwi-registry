@@ -1,0 +1,68 @@
+name: Feature request
+description: Suggest an improvement or new capability for KiwiRegistry.
+title: "[Feature]: "
+labels: ["enhancement"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem or use case this feature would solve.
+        A proposed API or implementation is welcome, but not required.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Related component
+      options:
+        - Registry
+        - RegistryGraph
+        - RegistryBuilder
+        - RegistryContributor
+        - Registry DSL
+        - RegistryProvider
+        - New component
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to achieve, and what limitation are you encountering?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior or API you would like to see.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe any existing workaround or alternative.
+    validations:
+      required: false
+
+  - type: textarea
+    id: example
+    attributes:
+      label: Example
+      description: Provide a small code example or API sketch showing how this feature would be used.
+      render: kotlin
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked that this feature has not already been requested.
+          required: true

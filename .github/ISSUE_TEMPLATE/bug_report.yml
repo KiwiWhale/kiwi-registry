@@ -1,0 +1,123 @@
+blank_issues_enabled: true
+name: Bug report
+description: Report a reproducible bug in KiwiRegistry.
+title: "[Bug]: "
+labels: ["bug"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before submitting, check whether the issue has already been reported.
+        Include a minimal reproduction whenever possible.
+        Please provide your KiwiRegistry version and Kotlin version.
+
+  - type: input
+    id: version
+    attributes:
+      label: KiwiRegistry version
+      description: The released version or commit hash.
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: kotlin
+    attributes:
+      label: Kotlin version
+      description: The version of Kotlin you are using.
+      placeholder: "2.2.0"
+    validations:
+      required: true
+
+  - type: input
+    id: java
+    attributes:
+      label: Java version
+      description: The JDK version used to run or build KiwiRegistry.
+      placeholder: "21"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - Linux
+        - macOS
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      options:
+        - RegistryKey / RegistryId
+        - Registry
+        - RegistryGraph
+        - RegistryBuilder
+        - RegistryContributor
+        - Registry DSL
+        - RegistryProvider
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug description
+      description: Clearly describe what happened.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Provide the smallest complete example.
+      placeholder: |
+        1. Create a RegistryKey...
+        2. Configure a Registry using RegistryBuilder...
+        3. Build a RegistryGraph...
+        4. Observe the unexpected behavior...
+      render: kotlin
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error messages and logs
+      description: Include relevant stack traces. Redact sensitive information.
+      render: text
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked that this issue has not already been reported.
+          required: true
+        - label: I can reproduce this issue with the information provided.
+          required: true
