@@ -1,7 +1,7 @@
 # 🥝 kiwi-registry
 
 ![GitHub License](https://img.shields.io/github/license/KiwiWhale/kiwi-registry?style=flat-square) 
-![Maven Repository](https://img.shields.io/badge/Maven-Reposilite-blue?style=flat-square)
+[![Maven Repository](https://img.shields.io/badge/Maven-Reposilite-blue?style=flat-square)](https://repo.mrjimin.xyz/#/releases/io/github/kiwiwhale/kiwi-registry)
 
 **A lightweight, type-safe, and immutable registry library for Kotlin.**
 
